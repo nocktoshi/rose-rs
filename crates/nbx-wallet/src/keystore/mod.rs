@@ -1,21 +1,9 @@
+mod cheetah;
+mod slip10;
+
+pub use cheetah::{PrivateKey, PublicKey, Signature};
+pub use slip10::ExtendedKey;
 use std::collections::BTreeMap;
-
-pub struct PublicKey(u128);
-pub struct Signature;
-
-struct PrivateKey(u128);
-
-impl PrivateKey {
-    fn derive_public_key(&self) -> PublicKey {
-        todo!()
-    }
-
-    // sign 5 belts
-    fn sign(&self, m: &[u64; 5]) -> Signature {
-        // TODO: impl sign:affine:belt-schnorr:cheetah
-        todo!()
-    }
-}
 
 struct MasterKey {
     priv_key: PrivateKey,
