@@ -6,3 +6,9 @@ edition.workspace = true
 [dependencies]
 nockchain-math = { workspace = true }
 ibig = { workspace = true }
+bip39 = "2.0"
+argon2 = "0.5"
+hmac = "0.12"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+bs58 = "0.5"

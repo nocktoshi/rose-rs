@@ -6,7 +6,7 @@ use nockchain_math::crypto::cheetah::{
 use nockchain_math::tip5::hash::hash_varlen;
 
 #[derive(Debug, Clone)]
-pub struct PublicKey(CheetahPoint);
+pub struct PublicKey(pub CheetahPoint);
 
 impl PublicKey {
     pub fn verify(&self, m: &[u64; 5], sig: &Signature) -> bool {
@@ -46,6 +46,14 @@ impl PublicKey {
 
         chal == sig.c
     }
+
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        for belt in self.0.y.0.iter().rev().chain(self.0.x.0.iter().rev()) {
+            data.extend_from_slice(&belt.0.to_be_bytes());
+        }
+        data
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +62,8 @@ pub struct Signature {
     pub s: UBig, // signature scalar
 }
 
-pub struct PrivateKey(UBig);
+#[derive(Debug, Clone)]
+pub struct PrivateKey(pub UBig);
 
 impl PrivateKey {
     pub fn derive_public_key(&self) -> PublicKey {
@@ -85,6 +94,13 @@ impl PrivateKey {
         };
         let sig = (&nonce + &chal * &self.0) % &*G_ORDER;
         Signature { c: chal, s: sig }
+    }
+
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        let bytes = self.0.to_be_bytes();
+        let mut arr = [0u8; 32];
+        arr[32 - bytes.len()..].copy_from_slice(&bytes);
+        arr.to_vec()
     }
 }
 
