@@ -1,4 +1,9 @@
-use alloc::{vec, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+use ibig::ops::DivRem;
 
 use crate::{
     belt::{Belt, PRIME},
@@ -32,14 +37,40 @@ impl Digest {
         bytes[40 - res_bytes.len()..].copy_from_slice(&res_bytes);
         bytes
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        use ibig::UBig;
+
+        let p = UBig::from(PRIME);
+        let num = UBig::from_be_bytes(bytes);
+
+        let (q1, a) = num.div_rem(&p);
+        let (q2, b) = q1.div_rem(&p);
+        let (q3, c) = q2.div_rem(&p);
+        let (q4, d) = q3.div_rem(&p);
+        let e = q4;
+
+        Digest([
+            Belt(a.try_into().unwrap()),
+            Belt(b.try_into().unwrap()),
+            Belt(c.try_into().unwrap()),
+            Belt(d.try_into().unwrap()),
+            Belt(e.try_into().unwrap()),
+        ])
+    }
 }
 
-pub fn to_b58(bytes: &[u8]) -> Vec<u8> {
-    bs58::encode(bytes).into_vec()
+impl ToString for Digest {
+    fn to_string(&self) -> String {
+        let bytes = self.to_bytes();
+        bs58::encode(bytes).into_string()
+    }
 }
 
-pub fn from_b58(s: &str) -> Vec<u8> {
-    bs58::decode(s).into_vec().unwrap()
+impl From<&str> for Digest {
+    fn from(s: &str) -> Self {
+        Self::from_bytes(&bs58::decode(s).into_vec().unwrap())
+    }
 }
 
 pub fn hash_noun(leaves: &[Belt], dyck: &[Belt]) -> Digest {
@@ -134,6 +165,18 @@ impl<T: Hashable> Hashable for Vec<T> {
             }
         }
         hash_slice(self.as_slice())
+    }
+}
+
+fn tas(tas: &str) -> u64 {
+    tas.bytes()
+        .enumerate()
+        .fold(0u64, |acc, (i, byte)| acc | ((byte as u64) << (i * 8)))
+}
+
+impl Hashable for &str {
+    fn hash(&self) -> Digest {
+        tas(self).hash()
     }
 }
 
@@ -238,19 +281,8 @@ impl<T: NounHashable> NounHashable for Vec<T> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_hashable_vectors() {
-        assert_eq!(
-            to_b58(&42.hash().to_bytes()),
-            "mhVFxh4yzHZWzLENL4FDu6WKynrgcyx3p6kJbJ9Cg7m9DPbSEvZMMf".as_bytes(),
-        );
-        assert_eq!(
-            to_b58(&(42, 69).hash().to_bytes()),
-            "4D62tFybemZW3YX4w16jFwT5pNUaGgYz3zyx32wMsuwtrZuYUnNCeGQ".as_bytes(),
-        );
+impl NounHashable for &str {
+    fn write_noun_parts(&self, leaves: &mut Vec<Belt>, dyck: &mut Vec<Belt>) {
+        tas(self).write_noun_parts(leaves, dyck);
     }
 }

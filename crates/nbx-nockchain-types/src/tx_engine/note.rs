@@ -1,24 +1,47 @@
-use alloc::{string::String, vec::Vec};
-use nbx_ztd::{Belt, Digest, Hashable as HashableTrait, ZSet};
+use alloc::vec::Vec;
+use nbx_ztd::{Belt, Digest, Hashable as HashableTrait, NounHashable, ZSet};
 use nbx_ztd_derive::{Hashable, NounHashable};
 
-#[derive(Debug, Clone, Hashable)]
+#[derive(Debug, Clone)]
 pub struct Pkh {
-    pub m: u64,
-    pub hashes: ZSet<Digest>,
+    m: u64,
+    hashes: Vec<Digest>,
 }
 
 impl Pkh {
     pub fn new(m: u64, hashes: Vec<Digest>) -> Self {
-        Self {
-            m,
-            hashes: ZSet::from_iter(hashes),
-        }
+        Self { m, hashes }
     }
 }
 
-#[derive(Debug, Clone, Hashable)]
-pub struct NoteData(pub ZMap<(String, HashableTrait)>);
+impl HashableTrait for Pkh {
+    fn hash(&self) -> Digest {
+        (self.m, ZSet::from_iter(self.hashes.iter())).hash()
+    }
+}
+
+impl NounHashable for Pkh {
+    fn write_noun_parts(&self, leaves: &mut Vec<Belt>, dyck: &mut Vec<Belt>) {
+        (self.m, ZSet::from_iter(self.hashes.iter())).write_noun_parts(leaves, dyck)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NoteData(pub Pkh); // TODO: make more generic
+
+impl HashableTrait for NoteData {
+    fn hash(&self) -> Digest {
+        let z = ZSet::from_iter(self.0.hashes.iter().map(|d| &d.0[..]));
+        (("lock", (0, (("pkh", (self.0.m, z)), 0))), (0, 0)).hash()
+    }
+}
+
+impl NounHashable for NoteData {
+    fn write_noun_parts(&self, leaves: &mut Vec<Belt>, dyck: &mut Vec<Belt>) {
+        let z = ZSet::from_iter(self.0.hashes.iter().map(|d| &d.0[..]));
+        (("lock", (0, (("pkh", (self.0.m, z)), 0))), (0, 0)).write_noun_parts(leaves, dyck);
+    }
+}
 
 #[derive(Debug, Clone, Hashable)]
 pub struct Note {
@@ -55,6 +78,12 @@ pub struct Balance(pub Vec<(Name, Note)>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hashable, NounHashable)]
 pub struct BlockHeight(pub Belt);
+
+impl From<u64> for BlockHeight {
+    fn from(height: u64) -> Self {
+        BlockHeight(Belt(height))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct BalanceUpdate {
@@ -102,10 +131,21 @@ impl From<u32> for Version {
     }
 }
 
-#[derive(Clone, Debug, Hashable)]
+#[derive(Clone, Debug, Hashable, NounHashable)]
 pub struct Name {
-    pub first: Digest,
-    pub last: Digest,
+    first: Digest,
+    last: Digest,
+    _sig: u64, // end-of-list marker
+}
+
+impl Name {
+    pub fn new(first: Digest, last: Digest) -> Self {
+        Self {
+            first,
+            last,
+            _sig: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Hashable, NounHashable)]

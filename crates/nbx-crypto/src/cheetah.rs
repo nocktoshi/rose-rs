@@ -125,21 +125,32 @@ impl NounHashable for Signature {
     }
 }
 
+impl Hashable for Signature {
+    fn hash(&self) -> Digest {
+        self.noun_hash()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PrivateKey(pub UBig);
 
 impl PrivateKey {
-    pub fn derive_public_key(&self) -> PublicKey {
+    pub fn public_key(&self) -> PublicKey {
         PublicKey(ch_scal_big(&self.0, &A_GEN).unwrap())
     }
 
     pub fn sign(&self, m: &Digest) -> Signature {
-        let pubkey = self.derive_public_key().0;
+        let pubkey = self.public_key().0;
         let nonce = {
             let mut transcript = Vec::new();
             transcript.extend_from_slice(&pubkey.x.0);
             transcript.extend_from_slice(&pubkey.y.0);
             transcript.extend_from_slice(&m.0);
+            self.0.to_le_bytes().chunks(4).for_each(|chunk| {
+                let mut buf = [0u8; 4];
+                buf[..chunk.len()].copy_from_slice(chunk);
+                transcript.push(Belt(u32::from_le_bytes(buf) as u64));
+            });
             trunc_g_order(&hash_varlen(&mut transcript))
         };
         let chal = {
@@ -174,7 +185,7 @@ mod tests {
         let priv_key = PrivateKey(UBig::from(123u64));
         let digest = Digest([Belt(1), Belt(2), Belt(3), Belt(4), Belt(5)]);
         let signature = priv_key.sign(&digest);
-        let pubkey = priv_key.derive_public_key();
+        let pubkey = priv_key.public_key();
         assert!(
             pubkey.verify(&digest, &signature),
             "Signature verification failed!"

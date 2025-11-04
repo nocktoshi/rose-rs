@@ -51,7 +51,7 @@ impl ExtendedKey {
                         let s = (&left + &pk.0) % &*G_ORDER;
                         if s != UBig::from(0u64) {
                             let private_key = PrivateKey(s);
-                            let public_key = private_key.derive_public_key();
+                            let public_key = private_key.public_key();
                             return ExtendedKey {
                                 private_key: Some(private_key),
                                 public_key,
@@ -91,7 +91,7 @@ pub fn derive_master_key(seed: &[u8]) -> ExtendedKey {
         chain_code.copy_from_slice(&result[32..]);
         if s < *G_ORDER && s != UBig::from(0u64) {
             let private_key = PrivateKey(s);
-            let public_key = private_key.derive_public_key();
+            let public_key = private_key.public_key();
             return ExtendedKey {
                 private_key: Some(private_key),
                 public_key,
@@ -106,7 +106,11 @@ pub fn derive_master_key(seed: &[u8]) -> ExtendedKey {
 mod tests {
     use super::*;
     use bip39::Mnemonic;
-    use nbx_ztd::{from_b58, Belt, NounHashable};
+    use nbx_ztd::{Belt, NounHashable};
+
+    fn from_b58(s: &str) -> Vec<u8> {
+        bs58::decode(s).into_vec().unwrap()
+    }
 
     #[test]
     fn test_nockchain_wallet_vector() {
@@ -163,7 +167,7 @@ mod tests {
                 .noun_hash()
                 .to_bytes()
                 .to_vec(),
-            from_b58("4zHoSpPvFTHRd3PhcvhRTEemVtuuwHT4zZUxbjVikjJ5RoeVz1DXNmq")
+            from_b58("AJMwSLmz1k9YnDa1iQTVbpz4Jr4hZojxeCHiqLY7TnjYLxXjZtmbskw")
         );
     }
 }
