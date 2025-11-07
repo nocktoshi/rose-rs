@@ -3,16 +3,15 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use ibig::UBig;
 use nbx_crypto::PrivateKey;
-use nbx_ztd::{Digest, Hashable as HashableTrait};
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
-
-use crate::{
+use nbx_nockchain_types::{
     builder::TxBuilder,
     note::{Name, Note, Pkh, TimelockRange, Version},
     tx::{LockPrimitive, LockTim, RawTx, Seed, SpendCondition},
     Nicks,
 };
+use nbx_ztd::{Digest, Hashable as HashableTrait};
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 // ============================================================================
 // Wasm Types - Core Types

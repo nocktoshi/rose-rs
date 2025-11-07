@@ -2,8 +2,8 @@ use ibig::UBig;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use crate::cheetah::{PrivateKey, PublicKey};
-use crate::slip10::{derive_master_key as derive_master_key_internal, ExtendedKey};
+use nbx_crypto::cheetah::{PrivateKey, PublicKey};
+use nbx_crypto::slip10::{derive_master_key as derive_master_key_internal, ExtendedKey};
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize)]

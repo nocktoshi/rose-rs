@@ -690,16 +690,12 @@ version = "0.1.0"
 dependencies = [
  "bip39",
  "bs58",
- "getrandom 0.2.16",
  "ibig",
- "js-sys",
  "nbx-crypto",
  "nbx-ztd",
  "nbx-ztd-derive",
  "serde",
- "serde-wasm-bindgen",
  "thiserror",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -711,6 +707,22 @@ dependencies = [
  "nbx-crypto",
  "nbx-nockchain-types",
  "nbx-ztd",
+]
+
+[[package]]
+name = "nbx-wasm"
+version = "0.1.0"
+dependencies = [
+ "bip39",
+ "getrandom 0.2.16",
+ "ibig",
+ "js-sys",
+ "nbx-crypto",
+ "nbx-nockchain-types",
+ "nbx-ztd",
+ "serde",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
 ]
 
 [[package]]

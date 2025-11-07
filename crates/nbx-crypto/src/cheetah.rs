@@ -168,7 +168,7 @@ impl PrivateKey {
         Signature { c: chal, s: sig }
     }
 
-    pub(crate) fn to_be_bytes(&self) -> [u8; 32] {
+    pub fn to_be_bytes(&self) -> [u8; 32] {
         let bytes = self.0.to_be_bytes();
         let mut arr = [0u8; 32];
         arr[32 - bytes.len()..].copy_from_slice(&bytes);

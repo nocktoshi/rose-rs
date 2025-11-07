@@ -5,6 +5,7 @@ members = [
   "crates/nbx-crypto",
   "crates/nbx-nockchain-types",
   "crates/nbx-grpc-proto",
+  "crates/nbx-wasm",
 ]
 
 resolver = "2"
@@ -25,6 +26,9 @@ path = "crates/nbx-crypto"
 
 [workspace.dependencies.nbx-nockchain-types]
 path = "crates/nbx-nockchain-types"
+
+[workspace.dependencies.nbx-wasm]
+path = "crates/nbx-wasm"
 
 [workspace.dependencies]
 nockvm = { git = "https://github.com/zorp-corp/nockchain.git" }
