@@ -1,4 +1,4 @@
-use crate::{Belt, Digest, Hashable, NounHashable};
+use crate::{Belt, Digest, Hashable, Noun, NounEncode, NounHashable};
 use alloc::boxed::Box;
 use alloc::fmt::Debug;
 use alloc::vec::Vec;
@@ -132,5 +132,21 @@ impl<T: NounHashable + Hashable> NounHashable for ZSet<T> {
             }
         }
         write_node(&self.root, leaves, dyck)
+    }
+}
+
+impl<T: NounEncode + Hashable> NounEncode for ZSet<T> {
+    fn to_noun(&self) -> Noun {
+        fn visit<T: NounEncode + Hashable>(node: &Option<Box<Node<T>>>) -> Noun {
+            match node {
+                None => 0.to_noun(),
+                Some(n) => {
+                    let left_hash = visit(&n.left);
+                    let right_hash = visit(&n.right);
+                    (&n.value, (left_hash, right_hash)).to_noun()
+                }
+            }
+        }
+        visit(&self.root)
     }
 }

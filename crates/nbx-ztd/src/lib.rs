@@ -7,7 +7,9 @@ pub mod tip5;
 
 mod belt;
 mod hash;
+mod noun;
 mod zset;
 pub use belt::Belt;
 pub use hash::*;
+pub use noun::*;
 pub use zset::*;

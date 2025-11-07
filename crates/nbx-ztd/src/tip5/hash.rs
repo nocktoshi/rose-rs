@@ -3,7 +3,10 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 use super::*;
-use crate::{based, belt::{montify, Belt}};
+use crate::{
+    based,
+    belt::{montify, Belt},
+};
 
 // assert that input is made of base field elements
 pub fn assert_all_based(vecbelt: &Vec<Belt>) {

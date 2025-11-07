@@ -1,9 +1,9 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use nbx_ztd::{Belt, Digest, Hashable as HashableTrait, NounHashable, ZSet};
-use nbx_ztd_derive::{Hashable, NounHashable};
+use nbx_ztd::{Belt, Digest, Hashable, Noun, NounEncode, NounHashable, ZSet};
+use nbx_ztd_derive::{Hashable, NounEncode, NounHashable};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NounEncode)]
 pub struct Pkh {
     pub m: u64,
     pub hashes: Vec<Digest>,
@@ -22,7 +22,7 @@ impl Pkh {
     }
 }
 
-impl HashableTrait for Pkh {
+impl Hashable for Pkh {
     fn hash(&self) -> Digest {
         (self.m, ZSet::from_iter(self.hashes.iter())).hash()
     }
@@ -37,7 +37,14 @@ impl NounHashable for Pkh {
 #[derive(Debug, Clone)]
 pub struct NoteData(pub Pkh); // TODO: make more generic
 
-impl HashableTrait for NoteData {
+impl NounEncode for NoteData {
+    fn to_noun(&self) -> Noun {
+        let z = ZSet::from_iter(self.0.hashes.iter());
+        (("lock", (0, (("pkh", (self.0.m, z)), 0))), (0, 0)).to_noun()
+    }
+}
+
+impl Hashable for NoteData {
     fn hash(&self) -> Digest {
         let z = ZSet::from_iter(self.0.hashes.iter().map(|d| &d.0[..]));
         (("lock", (0, (("pkh", (self.0.m, z)), 0))), (0, 0)).hash()
@@ -99,7 +106,7 @@ pub enum Version {
     V2,
 }
 
-impl HashableTrait for Version {
+impl Hashable for Version {
     fn hash(&self) -> Digest {
         match self {
             Version::V0 => 0,

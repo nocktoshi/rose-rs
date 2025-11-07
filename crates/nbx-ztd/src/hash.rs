@@ -9,6 +9,7 @@ use crate::{
     belt::{Belt, PRIME},
     crypto::cheetah::CheetahPoint,
     tip5::hash::{hash_fixed, hash_varlen},
+    Noun, NounEncode,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,15 +169,18 @@ impl<T: Hashable> Hashable for Vec<T> {
     }
 }
 
-fn tas(tas: &str) -> u64 {
-    tas.bytes()
-        .enumerate()
-        .fold(0u64, |acc, (i, byte)| acc | ((byte as u64) << (i * 8)))
-}
-
 impl Hashable for &str {
     fn hash(&self) -> Digest {
-        tas(self).hash()
+        self.to_noun().hash()
+    }
+}
+
+impl Hashable for Noun {
+    fn hash(&self) -> Digest {
+        match self {
+            Noun::Atom(b) => Belt(b.try_into().expect("atom too large")).hash(),
+            Noun::Cell(left, right) => (left.hash(), right.hash()).hash(),
+        }
     }
 }
 
@@ -283,6 +287,17 @@ impl<T: NounHashable> NounHashable for Vec<T> {
 
 impl NounHashable for &str {
     fn write_noun_parts(&self, leaves: &mut Vec<Belt>, dyck: &mut Vec<Belt>) {
-        tas(self).write_noun_parts(leaves, dyck);
+        self.to_noun().write_noun_parts(leaves, dyck);
+    }
+}
+
+impl NounHashable for Noun {
+    fn write_noun_parts(&self, leaves: &mut Vec<Belt>, dyck: &mut Vec<Belt>) {
+        match self {
+            Noun::Atom(b) => {
+                Belt(b.try_into().expect("atom too large")).write_noun_parts(leaves, dyck)
+            }
+            Noun::Cell(left, right) => (left.hash(), right.hash()).write_noun_parts(leaves, dyck),
+        }
     }
 }

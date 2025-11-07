@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 bs58 = { version = "0.5", default-features = false, features = ["alloc"] }
+bitvec = { version = "1.0", default-features = false, features = ["alloc"] }
 ibig = { workspace = true }
 once_cell = "1.21"
 arrayref = "0.3"

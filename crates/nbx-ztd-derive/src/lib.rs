@@ -208,6 +208,69 @@ pub fn derive_noun_hashable(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+/// Derive macro for implementing the `NounEncode` trait.
+#[proc_macro_derive(NounEncode)]
+pub fn derive_noun_encode(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let impl_body = match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => {
+                let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+
+                if field_names.is_empty() {
+                    quote! { nbx_ztd::NounEncode::to_noun(&0u64) }
+                } else if field_names.len() == 1 {
+                    let field = &field_names[0];
+                    quote! { nbx_ztd::NounEncode::to_noun(&self.#field) }
+                } else {
+                    let tuple_expr = build_nested_tuple_refs(&field_names);
+                    quote! { nbx_ztd::NounEncode::to_noun(&#tuple_expr) }
+                }
+            }
+            Fields::Unnamed(fields) => {
+                let field_count = fields.unnamed.len();
+
+                if field_count == 0 {
+                    quote! { nbx_ztd::NounEncode::to_noun(&0u64) }
+                } else if field_count == 1 {
+                    quote! { nbx_ztd::NounEncode::to_noun(&self.0) }
+                } else {
+                    let indices: Vec<_> = (0..field_count).map(|i| syn::Index::from(i)).collect();
+                    let tuple_expr = build_nested_tuple_refs_indexed(&indices);
+                    quote! { nbx_ztd::NounEncode::to_noun(&#tuple_expr) }
+                }
+            }
+            Fields::Unit => quote! { nbx_ztd::NounEncode::to_noun(&0u64) },
+        },
+        Data::Enum(_) => {
+            return syn::Error::new_spanned(
+                &input,
+                "NounEncode derive macro does not support enums yet",
+            )
+            .to_compile_error()
+            .into();
+        }
+        Data::Union(_) => {
+            return syn::Error::new_spanned(
+                &input,
+                "NounEncode derive macro does not support unions",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    TokenStream::from(quote! {
+        impl nbx_ztd::NounEncode for #name {
+            fn to_noun(&self) -> nbx_ztd::Noun {
+                #impl_body
+            }
+        }
+    })
+}
+
 /// Build nested tuple references: (&self.x, (&self.y, &self.z))
 fn build_nested_tuple_refs(field_names: &[&Option<syn::Ident>]) -> proc_macro2::TokenStream {
     let mut iter = field_names.iter().rev();
