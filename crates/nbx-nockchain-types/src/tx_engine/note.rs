@@ -40,7 +40,7 @@ pub struct NoteData(pub Pkh); // TODO: make more generic
 impl NounEncode for NoteData {
     fn to_noun(&self) -> Noun {
         let z = ZSet::from_iter(self.0.hashes.iter());
-        (("lock", (0, (("pkh", (self.0.m, z)), 0))), (0, 0)).to_noun()
+        (0, (("pkh", (self.0.m, z)), 0)).to_noun()
     }
 }
 

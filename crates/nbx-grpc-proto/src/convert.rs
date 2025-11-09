@@ -195,21 +195,6 @@ impl From<Seed> for PbSeed {
     }
 }
 
-impl TryFrom<PbSeed> for Seed {
-    type Error = ConversionError;
-    fn try_from(seed: PbSeed) -> Result<Self, Self::Error> {
-        Ok(Seed {
-            lock_root: seed.lock_root.required("Seed", "lock_root")?.try_into()?,
-            note_data: seed.note_data.required("Seed", "note_data")?.try_into()?,
-            gift: seed.gift.required("Seed", "gift")?.into(),
-            parent_hash: seed
-                .parent_hash
-                .required("Seed", "parent_hash")?
-                .try_into()?,
-        })
-    }
-}
-
 // Helper function instead of From impl to avoid orphan rules
 pub fn seeds_to_pb(seeds: Seeds) -> Vec<PbSeed> {
     seeds.0.into_iter().map(PbSeed::from).collect()
@@ -223,15 +208,6 @@ impl From<NoteData> for PbNoteData {
                 blob: jam(data.to_noun()),
             }],
         }
-    }
-}
-
-impl TryFrom<PbNoteData> for NoteData {
-    type Error = ConversionError;
-    fn try_from(_data: PbNoteData) -> Result<Self, Self::Error> {
-        // TODO: Implement proper NoteData deserialization from jammed noun bytes
-        // Need to parse the blob field and reconstruct the Pkh/lock structure
-        todo!("NoteData deserialization from protobuf not yet implemented")
     }
 }
 
