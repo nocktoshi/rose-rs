@@ -240,16 +240,31 @@
                 const privateKeyBytes = masterKey.private_key;
                 const pubkeyHashString = hashPublicKey(masterKey.public_key);
 
+                log('Fetching balance to get available notes...', 'loading');
+                client = new GrpcClient(endpoint);
+                const balanceResult = await client.get_balance_by_first_name("2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH");
+
+                if (!balanceResult.notes || balanceResult.notes.length === 0) {
+                    log('No notes available for the given address', 'error');
+                    return;
+                }
+
+                // Select a random note from the available notes
+                const randomIndex = Math.floor(Math.random() * balanceResult.notes.length);
+                const balanceNote = balanceResult.notes[randomIndex].note.note_version.V1;
+                log(`Selected random note ${randomIndex + 1} of ${balanceResult.notes.length}`, 'info');
+                log('Note:\n' + JSON.stringify(balanceNote, null, 2), 'info');
+
                 // test data; in practice this should come from getBalance
                 const note = new WasmNote(
                     WasmVersion.V1(),
-                    13n,
+                    balanceNote.origin_page.value,
                     new WasmName(
-                        "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH",
-                        "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvM"
+                        balanceNote.name.first,
+                        balanceNote.name.last,
                     ),
                     new WasmDigest(hashU64(0)),
-                    4294967296n
+                    balanceNote.assets.value,
                 );
                 const spendCondition = new WasmSpendCondition([
                     WasmLockPrimitive.newPkh(WasmPkh.single(pubkeyHashString)),

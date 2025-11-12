@@ -1,6 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use nbx_ztd::{Digest, Hashable, Noun, NounEncode, ZSet};
+use nbx_ztd::{jam, Digest, Hashable, Noun, NounEncode, ZSet};
 use nbx_ztd_derive::{Hashable, NounEncode};
 
 #[derive(Debug, Clone)]
@@ -37,10 +37,17 @@ impl NounEncode for Pkh {
 #[derive(Debug, Clone)]
 pub struct NoteData(pub Pkh); // TODO: make more generic
 
+impl NoteData {
+    pub fn blob(&self) -> Vec<u8> {
+        let z = ZSet::from_iter(self.0.hashes.iter());
+        jam((0, (("pkh", (self.0.m, z)), 0)).to_noun())
+    }
+}
+
 impl NounEncode for NoteData {
     fn to_noun(&self) -> Noun {
         let z = ZSet::from_iter(self.0.hashes.iter());
-        (0, (("pkh", (self.0.m, z)), 0)).to_noun()
+        (("lock", (0, (("pkh", (self.0.m, z)), 0))), (0, 0)).to_noun()
     }
 }
 

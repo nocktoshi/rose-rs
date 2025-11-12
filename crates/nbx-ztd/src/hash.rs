@@ -1,8 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{fmt, vec, vec::Vec};
 use ibig::ops::DivRem;
 
 use crate::{
@@ -60,10 +56,10 @@ impl Digest {
     }
 }
 
-impl ToString for Digest {
-    fn to_string(&self) -> String {
+impl fmt::Display for Digest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let bytes = self.to_bytes();
-        bs58::encode(bytes).into_string()
+        write!(f, "{}", bs58::encode(bytes).into_string())
     }
 }
 

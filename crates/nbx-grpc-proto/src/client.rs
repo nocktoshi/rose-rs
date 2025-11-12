@@ -1,7 +1,7 @@
 // Client module is only available for native targets (not WASM)
 #![cfg(not(target_arch = "wasm32"))]
 
-use nbx_nockchain_types::RawTx;
+use nbx_nockchain_types::{BalanceUpdate, RawTx, TxId};
 use tonic::transport::Channel;
 
 use crate::pb::common::v1::{Base58Hash, Base58Pubkey, PageRequest};
@@ -27,6 +27,9 @@ pub enum ClientError {
 
     #[error("Snapshot changed during pagination; retry")]
     SnapshotChanged,
+
+    #[error("Conversion error: {0}")]
+    Conversion(#[from] crate::common::ConversionError),
 }
 
 #[derive(Clone)]
@@ -45,10 +48,7 @@ impl PublicNockchainGrpcClient {
         Ok(Self { client })
     }
 
-    pub async fn wallet_get_balance(
-        &mut self,
-        request: &BalanceRequest,
-    ) -> Result<pb_common_v2::Balance> {
+    pub async fn wallet_get_balance(&mut self, request: &BalanceRequest) -> Result<BalanceUpdate> {
         let mut page_token = String::new();
         let mut all_notes: Vec<pb_common_v2::BalanceEntry> = Vec::new();
         let mut height: Option<pb_common_v1::BlockHeight> = None;
@@ -112,22 +112,22 @@ impl PublicNockchainGrpcClient {
             }
         }
 
-        Ok(pb_common_v2::Balance {
+        let pb_balance = pb_common_v2::Balance {
             notes: all_notes,
             height,
             block_id,
             page: Some(pb_common_v1::PageResponse {
                 next_page_token: String::new(),
             }),
-        })
+        };
+
+        Ok(pb_balance.try_into()?)
     }
 
-    pub async fn wallet_send_transaction(
-        &mut self,
-        raw_tx: RawTx,
-    ) -> Result<WalletSendTransactionResponse> {
-        let pb_tx_id = pb_common_v1::Hash::from(raw_tx.id);
-        let pb_raw_tx = pb_common_v2::RawTransaction::from(raw_tx);
+    pub async fn wallet_send_transaction(&mut self, raw_tx: &RawTx) -> Result<TxId> {
+        let tx_id = raw_tx.id;
+        let pb_tx_id = pb_common_v1::Hash::from(tx_id);
+        let pb_raw_tx = pb_common_v2::RawTransaction::from(raw_tx.clone());
 
         let request = WalletSendTransactionRequest {
             tx_id: Some(pb_tx_id),
@@ -141,7 +141,7 @@ impl PublicNockchainGrpcClient {
             .into_inner();
 
         match response.result {
-            Some(wallet_send_transaction_response::Result::Ack(_)) => Ok(response),
+            Some(wallet_send_transaction_response::Result::Ack(_)) => Ok(tx_id),
             Some(wallet_send_transaction_response::Result::Error(err)) => {
                 Err(ClientError::ServerError(err.message))
             }
@@ -149,10 +149,7 @@ impl PublicNockchainGrpcClient {
         }
     }
 
-    pub async fn transaction_accepted(
-        &mut self,
-        tx_id: Base58Hash,
-    ) -> Result<TransactionAcceptedResponse> {
+    pub async fn transaction_accepted(&mut self, tx_id: Base58Hash) -> Result<bool> {
         let request = TransactionAcceptedRequest { tx_id: Some(tx_id) };
         let response = self
             .client
@@ -161,7 +158,7 @@ impl PublicNockchainGrpcClient {
             .into_inner();
 
         match response.result {
-            Some(transaction_accepted_response::Result::Accepted(_)) => Ok(response),
+            Some(transaction_accepted_response::Result::Accepted(_)) => Ok(true),
             Some(transaction_accepted_response::Result::Error(err)) => {
                 Err(ClientError::ServerError(err.message))
             }

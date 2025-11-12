@@ -1,5 +1,5 @@
 use nbx_nockchain_types::*;
-use nbx_ztd::{jam, Belt, Digest, Hashable as ZHashable, NounEncode};
+use nbx_ztd::{Belt, Digest, Hashable as ZHashable};
 
 use crate::common::{ConversionError, Required};
 use crate::pb::common::v1::{
@@ -172,10 +172,7 @@ impl From<TimelockRange> for PbTimeLockRangeRelative {
 
 impl From<PbTimeLockRangeRelative> for TimelockRange {
     fn from(range: PbTimeLockRangeRelative) -> Self {
-        TimelockRange::new(
-            range.min.map(|v| v.value),
-            range.max.map(|v| v.value),
-        )
+        TimelockRange::new(range.min.map(|v| v.value), range.max.map(|v| v.value))
     }
 }
 
@@ -205,7 +202,7 @@ impl From<NoteData> for PbNoteData {
         Self {
             entries: vec![NoteDataEntry {
                 key: "lock".to_string(),
-                blob: jam(data.to_noun()),
+                blob: data.blob(),
             }],
         }
     }
@@ -478,5 +475,61 @@ impl From<BalanceUpdate> for PbBalance {
                 next_page_token: String::new(),
             }),
         }
+    }
+}
+
+// Reverse conversions: protobuf -> native types
+
+impl TryFrom<PbNote> for Note {
+    type Error = ConversionError;
+
+    fn try_from(pb_note: PbNote) -> Result<Self, Self::Error> {
+        match pb_note.note_version.required("Note", "note_version")? {
+            crate::pb::common::v2::note::NoteVersion::V1(v1) => {
+                Ok(Note {
+                    version: v1.version.required("NoteV1", "version")?.into(),
+                    origin_page: v1.origin_page.required("NoteV1", "origin_page")?.into(),
+                    name: v1.name.required("NoteV1", "name")?.try_into()?,
+                    // Note: We can't fully recover the note_data from the protobuf,
+                    // so we use a zero hash as a placeholder
+                    note_data_hash: 0u64.hash(),
+                    assets: v1.assets.required("NoteV1", "assets")?.into(),
+                })
+            }
+            crate::pb::common::v2::note::NoteVersion::Legacy(_) => Err(
+                ConversionError::UnsupportedVersion("Legacy note format not supported".to_string()),
+            ),
+        }
+    }
+}
+
+impl TryFrom<PbBalanceEntry> for (Name, Note) {
+    type Error = ConversionError;
+
+    fn try_from(entry: PbBalanceEntry) -> Result<Self, Self::Error> {
+        let name = entry.name.required("BalanceEntry", "name")?.try_into()?;
+        let note = entry.note.required("BalanceEntry", "note")?.try_into()?;
+        Ok((name, note))
+    }
+}
+
+impl TryFrom<PbBalance> for BalanceUpdate {
+    type Error = ConversionError;
+
+    fn try_from(pb_balance: PbBalance) -> Result<Self, Self::Error> {
+        let notes: Result<Vec<(Name, Note)>, ConversionError> = pb_balance
+            .notes
+            .into_iter()
+            .map(|entry| entry.try_into())
+            .collect();
+
+        Ok(BalanceUpdate {
+            height: pb_balance.height.required("Balance", "height")?.into(),
+            block_id: pb_balance
+                .block_id
+                .required("Balance", "block_id")?
+                .try_into()?,
+            notes: Balance(notes?),
+        })
     }
 }

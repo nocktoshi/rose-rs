@@ -26,19 +26,16 @@ impl Seed {
             parent_hash,
         }
     }
-
-    pub fn sig_hash(&self) -> Digest {
-        // NOTE: we assume output-source=~
-        (&Option::<Source>::None, &self).hash()
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Seeds(pub Vec<Seed>);
 
 impl Seeds {
-    fn sig_hash(&self) -> Digest {
-        ZSet::from_iter(self.0.iter().map(Seed::sig_hash)).hash()
+    pub fn sig_hash(&self) -> Digest {
+        // NOTE: we assume output-source=~
+        let output_source = Option::<Source>::None;
+        ZSet::from_iter(self.0.iter().map(|seed| (&output_source, seed))).hash()
     }
 }
 
@@ -275,19 +272,9 @@ mod tests {
             &seed1.note_data,
             "7hLhhBXik77vGuhxz9V9EKB5WcXhr692PsmV6AffGrQaxuF1df3kYUT",
         );
-        check_hash(
-            "seed1 sighash",
-            &seed1.sig_hash(),
-            "3aoHgNNtKdMd3tDQkSHcouYw9y8PbefbcWGTSEYaKvdam8VNvCnXBJS",
-        );
 
         let mut seed2 = seed1.clone();
         seed2.gift = 1234567;
-        check_hash(
-            "seed2 sighash",
-            &seed2.sig_hash(),
-            "ANtVFbzDyhjx9SZwS92n9vKGkRLA5fhiLg8963JpUcRYEYgby5DKVeA",
-        );
 
         let mut spend = Spend {
             witness: Witness::new(SpendCondition(vec![

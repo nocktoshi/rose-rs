@@ -1,5 +1,6 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use bitvec::prelude::{BitSlice, BitVec, Lsb0};
+use core::fmt;
 use ibig::UBig;
 use num_traits::Zero;
 
@@ -9,6 +10,21 @@ use crate::{belt::Belt, crypto::cheetah::CheetahPoint, Digest};
 pub enum Noun {
     Atom(UBig),
     Cell(Box<Noun>, Box<Noun>),
+}
+
+impl Noun {
+    pub fn to_string(&self) -> String {
+        match self {
+            Noun::Atom(a) => format!("{}", a),
+            Noun::Cell(left, right) => format!("[{} {}]", left.to_string(), right.to_string()),
+        }
+    }
+}
+
+impl fmt::Display for Noun {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
 }
 
 pub trait NounEncode {

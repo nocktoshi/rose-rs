@@ -19,4 +19,6 @@ pub enum ConversionError {
     Invalid(&'static str),
     #[error("Conversion error: {0}")]
     Other(&'static str),
+    #[error("Unsupported version: {0}")]
+    UnsupportedVersion(String),
 }
