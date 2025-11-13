@@ -120,7 +120,7 @@ pub fn hash_public_key(public_key_bytes: &[u8]) -> Result<String, JsValue> {
     Ok(digest.to_string())
 }
 
-/// Hash a u64 value (commonly used for note_data_hash with 0)
+/// Hash a u64 value
 #[wasm_bindgen(js_name = hashU64)]
 pub fn hash_u64(value: f64) -> String {
     use nbx_ztd::Hashable;

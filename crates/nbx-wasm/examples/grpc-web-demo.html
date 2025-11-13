@@ -146,11 +146,8 @@
             GrpcClient,
             deriveMasterKeyFromMnemonic,
             hashPublicKey,
-            hashU64,
             WasmTxBuilder,
             WasmNote,
-            WasmVersion,
-            WasmName,
             WasmDigest,
             WasmSpendCondition,
             WasmPkh,
@@ -251,21 +248,12 @@
 
                 // Select a random note from the available notes
                 const randomIndex = Math.floor(Math.random() * balanceResult.notes.length);
-                const balanceNote = balanceResult.notes[randomIndex].note.note_version.V1;
+                const balanceEntry = balanceResult.notes[randomIndex];
                 log(`Selected random note ${randomIndex + 1} of ${balanceResult.notes.length}`, 'info');
-                log('Note:\n' + JSON.stringify(balanceNote, null, 2), 'info');
+                log('Note:\n' + JSON.stringify(balanceEntry.note, null, 2), 'info');
 
-                // test data; in practice this should come from getBalance
-                const note = new WasmNote(
-                    WasmVersion.V1(),
-                    balanceNote.origin_page.value,
-                    new WasmName(
-                        balanceNote.name.first,
-                        balanceNote.name.last,
-                    ),
-                    new WasmDigest(hashU64(0)),
-                    balanceNote.assets.value,
-                );
+                // Convert protobuf note to WasmNote
+                const note = WasmNote.fromProtobuf(balanceEntry.note);
                 const spendCondition = new WasmSpendCondition([
                     WasmLockPrimitive.newPkh(WasmPkh.single(pubkeyHashString)),
                     WasmLockPrimitive.newTim(WasmLockTim.coinbase())

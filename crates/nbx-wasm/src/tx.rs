@@ -5,11 +5,11 @@ use ibig::UBig;
 use nbx_crypto::PrivateKey;
 use nbx_nockchain_types::{
     builder::TxBuilder,
-    note::{Name, Note, Pkh, TimelockRange, Version},
+    note::{Name, Note, NoteData, NoteDataEntry, Pkh, TimelockRange, Version},
     tx::{LockPrimitive, LockTim, RawTx, Seed, SpendCondition},
     Nicks,
 };
-use nbx_ztd::{Digest, Hashable as HashableTrait};
+use nbx_ztd::{cue, jam, Digest, Hashable as HashableTrait};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -164,6 +164,97 @@ impl WasmTimelockRange {
 
 #[wasm_bindgen]
 #[derive(Clone, Serialize, Deserialize)]
+pub struct WasmNoteDataEntry {
+    #[wasm_bindgen(skip)]
+    pub key: String,
+    #[wasm_bindgen(skip)]
+    pub blob: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl WasmNoteDataEntry {
+    #[wasm_bindgen(constructor)]
+    pub fn new(key: String, blob: Vec<u8>) -> Self {
+        Self { key, blob }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn key(&self) -> String {
+        self.key.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn blob(&self) -> Vec<u8> {
+        self.blob.clone()
+    }
+
+    fn to_internal(&self) -> Result<NoteDataEntry, String> {
+        let val = cue(&self.blob).ok_or_else(|| "Failed to deserialize noun".to_string())?;
+        Ok(NoteDataEntry {
+            key: self.key.clone(),
+            val,
+        })
+    }
+
+    fn from_internal(entry: &NoteDataEntry) -> Self {
+        Self {
+            key: entry.key.clone(),
+            blob: jam(entry.val.clone()),
+        }
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct WasmNoteData {
+    #[wasm_bindgen(skip)]
+    pub entries: Vec<WasmNoteDataEntry>,
+}
+
+#[wasm_bindgen]
+impl WasmNoteData {
+    #[wasm_bindgen(constructor)]
+    pub fn new(entries: Vec<WasmNoteDataEntry>) -> Self {
+        Self { entries }
+    }
+
+    #[wasm_bindgen]
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    #[wasm_bindgen(js_name = fromPkh)]
+    pub fn from_pkh(pkh: WasmPkh) -> Self {
+        let note_data = NoteData::from_pkh(pkh.to_internal());
+        Self::from_internal(&note_data)
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn entries(&self) -> Vec<WasmNoteDataEntry> {
+        self.entries.clone()
+    }
+
+    fn to_internal(&self) -> Result<NoteData, String> {
+        let entries: Result<Vec<NoteDataEntry>, String> =
+            self.entries.iter().map(|e| e.to_internal()).collect();
+        Ok(NoteData(entries?))
+    }
+
+    fn from_internal(note_data: &NoteData) -> Self {
+        Self {
+            entries: note_data
+                .0
+                .iter()
+                .map(WasmNoteDataEntry::from_internal)
+                .collect(),
+        }
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct WasmNote {
     #[wasm_bindgen(skip)]
     pub version: WasmVersion,
@@ -172,7 +263,7 @@ pub struct WasmNote {
     #[wasm_bindgen(skip)]
     pub name: WasmName,
     #[wasm_bindgen(skip)]
-    pub note_data_hash: WasmDigest,
+    pub note_data: WasmNoteData,
     #[wasm_bindgen(skip)]
     pub assets: Nicks,
 }
@@ -184,14 +275,14 @@ impl WasmNote {
         version: WasmVersion,
         origin_page: u64,
         name: WasmName,
-        note_data_hash: WasmDigest,
+        note_data: WasmNoteData,
         assets: Nicks,
     ) -> Self {
         Self {
             version,
             origin_page,
             name,
-            note_data_hash,
+            note_data,
             assets,
         }
     }
@@ -211,9 +302,9 @@ impl WasmNote {
         self.name.clone()
     }
 
-    #[wasm_bindgen(getter, js_name = noteDataHash)]
-    pub fn note_data_hash(&self) -> WasmDigest {
-        self.note_data_hash.clone()
+    #[wasm_bindgen(getter, js_name = noteData)]
+    pub fn note_data(&self) -> WasmNoteData {
+        self.note_data.clone()
     }
 
     #[wasm_bindgen(getter)]
@@ -222,18 +313,109 @@ impl WasmNote {
     }
 
     #[wasm_bindgen]
-    pub fn hash(&self) -> WasmDigest {
-        WasmDigest::from_internal(&self.to_internal().hash())
+    pub fn hash(&self) -> Result<WasmDigest, JsValue> {
+        let note = self
+            .to_internal()
+            .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+        Ok(WasmDigest::from_internal(&note.hash()))
     }
 
-    fn to_internal(&self) -> Note {
-        Note::new(
+    /// Create a WasmNote from a protobuf Note object (from get_balance response)
+    /// Expects response.notes[i].note (handles version internally)
+    #[wasm_bindgen(js_name = fromProtobuf)]
+    pub fn from_protobuf(pb_note: JsValue) -> Result<WasmNote, JsValue> {
+        use serde_wasm_bindgen::from_value;
+
+        #[derive(Deserialize)]
+        struct PbNote {
+            note_version: PbNoteVersion,
+        }
+
+        #[derive(Deserialize)]
+        struct PbNoteVersion {
+            #[serde(rename = "V1")]
+            v1: Option<PbNoteV1>,
+        }
+
+        #[derive(Deserialize)]
+        struct PbNoteV1 {
+            version: PbVersion,
+            origin_page: PbValue,
+            name: PbName,
+            note_data: PbNoteData,
+            assets: PbValue,
+        }
+
+        #[derive(Deserialize)]
+        struct PbVersion {
+            value: String,
+        }
+
+        #[derive(Deserialize)]
+        struct PbValue {
+            value: String,
+        }
+
+        #[derive(Deserialize)]
+        struct PbName {
+            first: String,
+            last: String,
+        }
+
+        #[derive(Deserialize)]
+        struct PbNoteData {
+            entries: Vec<PbNoteDataEntry>,
+        }
+
+        #[derive(Deserialize)]
+        struct PbNoteDataEntry {
+            key: String,
+            blob: Vec<u8>,
+        }
+
+        let pb: PbNote = from_value(pb_note).map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+
+        let v1 = pb
+            .note_version
+            .v1
+            .ok_or_else(|| JsValue::from_str("Only V1 notes are supported"))?;
+
+        let version_value: u32 = v1
+            .version
+            .value
+            .parse()
+            .map_err(|e| JsValue::from_str(&format!("Invalid version: {}", e)))?;
+        let version = WasmVersion::new(version_value);
+        let origin_page: u64 = v1
+            .origin_page
+            .value
+            .parse()
+            .map_err(|e| JsValue::from_str(&format!("Invalid origin_page: {}", e)))?;
+        let name = WasmName::new(v1.name.first, v1.name.last);
+        let note_data_entries: Vec<WasmNoteDataEntry> = v1
+            .note_data
+            .entries
+            .into_iter()
+            .map(|e| WasmNoteDataEntry::new(e.key, e.blob))
+            .collect();
+        let note_data = WasmNoteData::new(note_data_entries);
+        let assets: u64 = v1
+            .assets
+            .value
+            .parse()
+            .map_err(|e| JsValue::from_str(&format!("Invalid assets: {}", e)))?;
+
+        Ok(WasmNote::new(version, origin_page, name, note_data, assets))
+    }
+
+    fn to_internal(&self) -> Result<Note, String> {
+        Ok(Note::new(
             self.version.to_internal(),
             self.origin_page,
             self.name.to_internal(),
-            self.note_data_hash.to_internal(),
+            self.note_data.to_internal()?,
             self.assets,
-        )
+        ))
     }
 }
 
@@ -489,7 +671,9 @@ impl WasmTxBuilder {
         fee: Nicks,
         refund_pkh: WasmDigest,
     ) -> Result<WasmTxBuilder, JsValue> {
-        let internal_notes: Vec<Note> = notes.iter().map(|n| n.to_internal()).collect();
+        let internal_notes: Result<Vec<Note>, String> =
+            notes.iter().map(|n| n.to_internal()).collect();
+        let internal_notes = internal_notes.map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
         let builder = TxBuilder::new_simple(
             internal_notes,
