@@ -16,7 +16,12 @@ pub struct Seed {
 }
 
 impl Seed {
-    pub fn new_single_pkh(pkh: Digest, gift: Nicks, parent_hash: Digest, include_lock_data: bool) -> Self {
+    pub fn new_single_pkh(
+        pkh: Digest,
+        gift: Nicks,
+        parent_hash: Digest,
+        include_lock_data: bool,
+    ) -> Self {
         let lock_root = SpendCondition::new_pkh(Pkh::single(pkh)).hash();
         let mut note_data = NoteData::empty();
         if include_lock_data {
@@ -161,6 +166,10 @@ pub struct SpendCondition(pub Vec<LockPrimitive>);
 impl SpendCondition {
     pub fn new_pkh(pkh: Pkh) -> Self {
         SpendCondition(vec![LockPrimitive::Pkh(pkh)])
+    }
+
+    pub fn first_name(&self) -> Digest {
+        (true, self.hash()).hash()
     }
 }
 

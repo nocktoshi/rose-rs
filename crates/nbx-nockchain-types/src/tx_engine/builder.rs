@@ -179,4 +179,19 @@ mod tests {
             "3j4vkn72mcpVtQrTgNnYyoF3rDuYax3aebT5axu3Qe16jm9x2wLtepW"
         );
     }
+
+    #[test]
+    fn test_first_name() {
+        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
+        let public_key = derive_master_key(&mnemonic.to_seed("")).public_key;
+
+        let sc = SpendCondition(vec![
+            LockPrimitive::Pkh(Pkh::single(public_key.hash())),
+            LockPrimitive::Tim(LockTim::coinbase()),
+        ]);
+        assert_eq!(
+            sc.first_name().to_string(),
+            "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH",
+        )
+    }
 }
