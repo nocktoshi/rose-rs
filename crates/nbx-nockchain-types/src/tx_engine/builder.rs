@@ -6,7 +6,9 @@ use super::note::Note;
 use super::tx::{Seed, Seeds, Spend, SpendCondition, Spends, Witness};
 use crate::{Nicks, RawTx};
 
-pub struct TxBuilder {}
+pub struct TxBuilder {
+    spends: Spends,
+}
 
 impl TxBuilder {
     pub fn new_with_fee(
@@ -16,8 +18,7 @@ impl TxBuilder {
         fee: Nicks,
         refund_pkh: Digest,
         include_lock_data: bool,
-        signing_key: &PrivateKey,
-    ) -> Result<RawTx, BuildError> {
+    ) -> Result<Self, BuildError> {
         if gift == 0 {
             return Err(BuildError::ZeroGift);
         }
@@ -67,14 +68,20 @@ impl TxBuilder {
             return Err(BuildError::InsufficientFunds);
         }
 
+        Ok(Self {
+            spends: Spends(spends_vec),
+        })
+    }
+
+    pub fn sign(&self, signing_key: &PrivateKey) -> RawTx {
+        let mut spends_vec = self.spends.0.clone();
         for (_, spend) in spends_vec.as_mut_slice() {
             spend.add_signature(
                 signing_key.public_key(),
                 signing_key.sign(&spend.sig_hash()),
             );
         }
-
-        Ok(RawTx::new(Spends(spends_vec)))
+        RawTx::new(Spends(spends_vec))
     }
 
     pub fn new_simple(
@@ -84,29 +91,33 @@ impl TxBuilder {
         fee_per_word: Nicks,
         refund_pkh: Digest,
         include_lock_data: bool,
-        signing_key: &PrivateKey,
-    ) -> Result<RawTx, BuildError> {
+    ) -> Result<Self, BuildError> {
         // Find fixpoint
-        let build = |fee| {
-            Self::new_with_fee(
+        let calc_fee = |fee| {
+            Ok(Self::new_with_fee(
                 notes.clone(),
                 recipient,
                 gift,
                 fee,
                 refund_pkh,
                 include_lock_data,
-                signing_key,
-            )
+            )?
+            .sign(&PrivateKey(1u64.into()))
+            .spends
+            .fee(fee_per_word))
         };
         let mut fee: Nicks = 0;
-        loop {
-            let tx = build(fee)?;
-            let new_fee = tx.spends.fee(fee_per_word);
-            if new_fee == fee {
-                break Ok(tx);
-            }
-            fee = new_fee
+        while calc_fee(fee)? != calc_fee(calc_fee(fee)?)? {
+            fee = calc_fee(fee)?;
         }
+        Self::new_with_fee(
+            notes.clone(),
+            recipient,
+            gift,
+            fee,
+            refund_pkh,
+            include_lock_data,
+        )
     }
 }
 
@@ -164,20 +175,34 @@ mod tests {
             LockPrimitive::Tim(LockTim::coinbase()),
         ]);
         let tx = TxBuilder::new_with_fee(
-            vec![(note, spend_condition)],
+            vec![(note.clone(), spend_condition.clone())],
             recipient,
             gift,
             fee,
             refund_pkh,
             true,
-            &private_key,
         )
-        .unwrap();
+        .unwrap()
+        .sign(&private_key);
 
         assert_eq!(
             tx.id.to_string(),
             "3j4vkn72mcpVtQrTgNnYyoF3rDuYax3aebT5axu3Qe16jm9x2wLtepW"
         );
+
+        let fee_per_word = 40000;
+        let tx = TxBuilder::new_simple(
+            vec![(note, spend_condition)],
+            recipient,
+            gift,
+            fee_per_word,
+            refund_pkh,
+            false,
+        )
+        .unwrap()
+        .sign(&private_key);
+
+        assert_eq!(tx.spends.fee(fee_per_word), 2240000);
     }
 
     #[test]

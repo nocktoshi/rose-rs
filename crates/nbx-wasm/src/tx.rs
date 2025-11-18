@@ -665,11 +665,13 @@ impl WasmSeed {
 // ============================================================================
 
 #[wasm_bindgen]
-pub struct WasmTxBuilder {}
+pub struct WasmTxBuilder {
+    builder: Option<TxBuilder>,
+}
 
 #[wasm_bindgen]
 impl WasmTxBuilder {
-    /// Create a simple transaction
+    /// Create a simple transaction builder
     #[wasm_bindgen(js_name = newSimple)]
     pub fn new_simple(
         notes: Vec<WasmNote>,
@@ -679,8 +681,7 @@ impl WasmTxBuilder {
         fee_per_word: Nicks,
         refund_pkh: WasmDigest,
         include_lock_data: bool,
-        signing_key_bytes: &[u8],
-    ) -> Result<WasmRawTx, JsValue> {
+    ) -> Result<WasmTxBuilder, JsValue> {
         if notes.len() != spend_conditions.len() {
             return Err(JsValue::from_str(
                 "notes and spend_conditions must have the same length",
@@ -694,21 +695,35 @@ impl WasmTxBuilder {
             .collect();
         let internal_notes = internal_notes.map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
-        if signing_key_bytes.len() != 32 {
-            return Err(JsValue::from_str("Private key must be 32 bytes"));
-        }
-
-        let tx = TxBuilder::new_simple(
+        let builder = TxBuilder::new_simple(
             internal_notes,
             recipient.to_internal(),
             gift,
             fee_per_word,
             refund_pkh.to_internal(),
             include_lock_data,
-            &PrivateKey(UBig::from_be_bytes(signing_key_bytes)),
         )
         .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
+        Ok(Self {
+            builder: Some(builder),
+        })
+    }
+
+    /// Sign the transaction with a private key
+    #[wasm_bindgen]
+    pub fn sign(&mut self, signing_key_bytes: &[u8]) -> Result<WasmRawTx, JsValue> {
+        if signing_key_bytes.len() != 32 {
+            return Err(JsValue::from_str("Private key must be 32 bytes"));
+        }
+        let signing_key = PrivateKey(UBig::from_be_bytes(signing_key_bytes));
+
+        let builder = self
+            .builder
+            .take()
+            .ok_or_else(|| JsValue::from_str("Builder already consumed"))?;
+
+        let tx = builder.sign(&signing_key);
         Ok(WasmRawTx::from_internal(&tx))
     }
 }
