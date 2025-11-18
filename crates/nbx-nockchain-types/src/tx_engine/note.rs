@@ -1,8 +1,10 @@
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{string::String, vec};
-use nbx_ztd::{Digest, Hashable, Noun, NounEncode, NounDecode, ZSet};
-use nbx_ztd_derive::{Hashable, NounEncode, NounDecode};
+use nbx_ztd::{Digest, Hashable, Noun, NounDecode, NounEncode, ZSet};
+use nbx_ztd_derive::{Hashable, NounDecode, NounEncode};
+
+use super::SpendCondition;
 
 #[derive(Debug, Clone)]
 pub struct Pkh {
@@ -68,6 +70,14 @@ impl NoteData {
         self.0.push(NoteDataEntry {
             key: "lock".to_string(),
             val: (0, ("pkh", (pkh.m, ZSet::from_iter(pkh.hashes.iter()))), 0).to_noun(),
+        });
+    }
+
+    // TODO: support 2,4,8,16-way spend conditions.
+    pub fn push_lock(&mut self, spend_condition: SpendCondition) {
+        self.0.push(NoteDataEntry {
+            key: "lock".to_string(),
+            val: (0, spend_condition).to_noun(),
         });
     }
 
@@ -178,7 +188,7 @@ impl From<u32> for Version {
     }
 }
 
-#[derive(Clone, Debug, Hashable, NounEncode)]
+#[derive(Clone, Debug, Hashable, NounEncode, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Name {
     pub first: Digest,
     pub last: Digest,

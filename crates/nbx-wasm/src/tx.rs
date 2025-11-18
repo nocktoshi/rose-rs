@@ -726,12 +726,17 @@ impl WasmTxBuilder {
         }
         let signing_key = PrivateKey(UBig::from_be_bytes(signing_key_bytes));
 
-        let builder = self
+        let mut builder = self
             .builder
             .take()
             .ok_or_else(|| JsValue::from_str("Builder already consumed"))?;
 
-        let tx = builder.sign(&signing_key);
+        let tx = builder
+            .sign(&signing_key)
+            .validate(1 << 15)
+            .map_err(|v| JsValue::from_str(&v.to_string()))?
+            .build();
+
         Ok(WasmRawTx::from_internal(&tx))
     }
 }

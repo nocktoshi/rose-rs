@@ -7,7 +7,7 @@ use crate::{
     Noun,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Digest(pub [Belt; 5]);
 
 impl From<[u64; 5]> for Digest {

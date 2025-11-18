@@ -138,6 +138,22 @@ impl NounDecode for Noun {
     }
 }
 
+impl NounEncode for () {
+    fn to_noun(&self) -> Noun {
+        atom(0)
+    }
+}
+
+impl NounDecode for () {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        if *noun == atom(0) {
+            Some(())
+        } else {
+            None
+        }
+    }
+}
+
 impl NounEncode for Belt {
     fn to_noun(&self) -> Noun {
         atom(self.0)

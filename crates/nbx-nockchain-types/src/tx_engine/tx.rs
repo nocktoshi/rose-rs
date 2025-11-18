@@ -1,8 +1,8 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use nbx_crypto::{PublicKey, Signature};
-use nbx_ztd::{Digest, Hashable as HashableTrait, Noun, NounEncode, ZSet};
-use nbx_ztd_derive::{Hashable, NounEncode, NounDecode};
+use nbx_ztd::{Digest, Hashable as HashableTrait, Noun, NounEncode, ZMap, ZSet};
+use nbx_ztd_derive::{Hashable, NounDecode, NounEncode};
 
 use super::note::{Name, NoteData, Source, TimelockRange, Version};
 use crate::{Nicks, Pkh};
@@ -66,7 +66,44 @@ pub struct Spend {
     pub fee: Nicks,
 }
 
+impl AsRef<Spend> for Spend {
+    fn as_ref(&self) -> &Spend {
+        self
+    }
+}
+
 impl Spend {
+    pub fn fee_for_many<T: AsRef<Spend>>(
+        spends: impl Iterator<Item = T>,
+        per_word: Nicks,
+    ) -> Nicks {
+        const MIN_FEE: u64 = 256;
+        let words = spends
+            .map(|v| v.as_ref().calc_words())
+            .map(|v| v.0 + v.1)
+            .sum::<u64>();
+        (words * per_word).max(MIN_FEE)
+    }
+
+    pub fn calc_words(&self) -> (u64, u64) {
+        fn noun_words(n: &Noun) -> u64 {
+            match n {
+                Noun::Atom(_) => 1,
+                Noun::Cell(l, r) => noun_words(l) + noun_words(r),
+            }
+        }
+
+        let seed_words: u64 = self
+            .seeds
+            .0
+            .iter()
+            .map(|seed| noun_words(&seed.note_data.to_noun()))
+            .sum();
+        let witness_words = noun_words(&self.witness.to_noun());
+
+        (seed_words, witness_words)
+    }
+
     pub fn new(witness: Witness, seeds: Seeds, fee: Nicks) -> Self {
         Self {
             witness,
@@ -81,6 +118,12 @@ impl Spend {
 
     pub fn add_signature(&mut self, key: PublicKey, signature: Signature) {
         self.witness.pkh_signature.0.push((key, signature));
+    }
+
+    pub fn add_preimage(&mut self, preimage: Noun) -> Digest {
+        let digest = preimage.hash();
+        self.witness.hax_map.insert(digest, preimage);
+        digest
     }
 }
 
@@ -109,6 +152,8 @@ impl NounEncode for PkhSignature {
 pub struct Witness {
     pub lock_merkle_proof: LockMerkleProof,
     pub pkh_signature: PkhSignature,
+    pub hax_map: ZMap<Digest, Noun>,
+    pub tim: (),
 }
 
 impl Witness {
@@ -121,6 +166,8 @@ impl Witness {
                 proof: MerkleProof { root, path: vec![] },
             },
             pkh_signature: PkhSignature(vec![]),
+            hax_map: ZMap::new(),
+            tim: (),
         }
     }
 }
@@ -130,8 +177,8 @@ impl HashableTrait for Witness {
         [
             self.lock_merkle_proof.hash(),
             self.pkh_signature.hash(),
-            0.hash(), // hax
-            0.hash(), // tim
+            self.hax_map.hash(),
+            self.tim.to_noun().hash(), // tim
         ]
         .as_slice()
         .hash()
@@ -170,6 +217,40 @@ impl SpendCondition {
 
     pub fn first_name(&self) -> Digest {
         (true, self.hash()).hash()
+    }
+
+    pub fn pkh(&self) -> impl Iterator<Item = &Pkh> + '_ {
+        self.0.iter().filter_map(|v| {
+            if let LockPrimitive::Pkh(p) = v {
+                Some(p)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn tim(&self) -> impl Iterator<Item = &LockTim> + '_ {
+        self.0.iter().filter_map(|v| {
+            if let LockPrimitive::Tim(t) = v {
+                Some(t)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn hax(&self) -> impl Iterator<Item = &Hax> + '_ {
+        self.0.iter().filter_map(|v| {
+            if let LockPrimitive::Hax(h) = v {
+                Some(h)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn brn(&self) -> bool {
+        self.0.iter().any(|v| matches!(v, LockPrimitive::Brn))
     }
 }
 
@@ -231,30 +312,7 @@ pub struct Spends(pub Vec<(Name, Spend)>);
 
 impl Spends {
     pub fn fee(&self, per_word: Nicks) -> Nicks {
-        const BASE_FEE: u64 = 1 << 15; // 32768
-        const MIN_FEE: u64 = 256;
-
-        fn noun_words(n: &Noun) -> u64 {
-            match n {
-                Noun::Atom(_) => 1,
-                Noun::Cell(l, r) => noun_words(l) + noun_words(r),
-            }
-        }
-
-        fn spend_words(spend: &Spend) -> u64 {
-            let seed_words: u64 = spend
-                .seeds
-                .0
-                .iter()
-                .map(|seed| noun_words(&seed.note_data.to_noun()))
-                .sum();
-            let witness_words = noun_words(&spend.witness.to_noun());
-
-            seed_words + witness_words
-        }
-
-        let words: u64 = self.0.iter().map(|s| spend_words(&s.1)).sum();
-        (per_word.max(BASE_FEE) * words).max(MIN_FEE)
+        Spend::fee_for_many(self.0.iter().map(|v| &v.1), per_word)
     }
 }
 
