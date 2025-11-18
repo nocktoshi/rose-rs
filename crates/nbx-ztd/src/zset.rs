@@ -1,6 +1,8 @@
-use crate::{Digest, Hashable, Noun, NounEncode};
+use crate::{Digest, Hashable, Noun, NounDecode, NounEncode};
 use alloc::boxed::Box;
 use alloc::fmt::Debug;
+use alloc::vec;
+use alloc::vec::Vec;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZSet<T> {
@@ -127,5 +129,57 @@ impl<T: NounEncode> NounEncode for ZSet<T> {
             }
         }
         visit(&self.root)
+    }
+}
+
+impl<T: NounDecode> NounDecode for Node<T> {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        let (value, left, right) = NounDecode::from_noun(noun)?;
+        Some(Self { value, left, right })
+    }
+}
+
+impl<T: NounDecode> NounDecode for ZSet<T> {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        let root: Option<Box<Node<T>>> = NounDecode::from_noun(noun)?;
+        Some(Self { root })
+    }
+}
+
+pub struct ZSetIntoIterator<T> {
+    stack: Vec<Box<Node<T>>>,
+}
+
+impl<T> Iterator for ZSetIntoIterator<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.stack.pop()?;
+        if let Some(n) = cur.left {
+            self.stack.push(n);
+        }
+        if let Some(n) = cur.right {
+            self.stack.push(n);
+        }
+        Some(cur.value)
+    }
+}
+
+impl<T> IntoIterator for ZSet<T> {
+    type Item = T;
+    type IntoIter = ZSetIntoIterator<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut stack = vec![];
+        if let Some(n) = self.root {
+            stack.push(n);
+        }
+        ZSetIntoIterator { stack }
+    }
+}
+
+impl<T: NounEncode> From<ZSet<T>> for Vec<T> {
+    fn from(set: ZSet<T>) -> Self {
+        set.into_iter().collect()
     }
 }

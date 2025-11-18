@@ -2,12 +2,12 @@ use alloc::vec;
 use alloc::vec::Vec;
 use nbx_crypto::{PublicKey, Signature};
 use nbx_ztd::{Digest, Hashable as HashableTrait, Noun, NounEncode, ZSet};
-use nbx_ztd_derive::{Hashable, NounEncode};
+use nbx_ztd_derive::{Hashable, NounEncode, NounDecode};
 
 use super::note::{Name, NoteData, Source, TimelockRange, Version};
 use crate::{Nicks, Pkh};
 
-#[derive(Debug, Clone, Hashable, NounEncode)]
+#[derive(Debug, Clone, Hashable, NounEncode, NounDecode)]
 pub struct Seed {
     pub lock_root: Digest,
     pub note_data: NoteData,

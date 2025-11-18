@@ -1,8 +1,8 @@
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{string::String, vec};
-use nbx_ztd::{Digest, Hashable, Noun, NounEncode, ZSet};
-use nbx_ztd_derive::{Hashable, NounEncode};
+use nbx_ztd::{Digest, Hashable, Noun, NounEncode, NounDecode, ZSet};
+use nbx_ztd_derive::{Hashable, NounEncode, NounDecode};
 
 #[derive(Debug, Clone)]
 pub struct Pkh {
@@ -35,7 +35,7 @@ impl NounEncode for Pkh {
     }
 }
 
-#[derive(Debug, Clone, NounEncode)]
+#[derive(Debug, Clone, NounEncode, NounDecode)]
 pub struct NoteDataEntry {
     pub key: String,
     pub val: Noun,
@@ -81,6 +81,14 @@ impl NoteData {
 impl NounEncode for NoteData {
     fn to_noun(&self) -> Noun {
         ZSet::from_iter(self.0.iter()).to_noun()
+    }
+}
+
+impl NounDecode for NoteData {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        let set = ZSet::<NoteDataEntry>::from_noun(noun)?;
+        let entries = set.into();
+        Some(Self(entries))
     }
 }
 

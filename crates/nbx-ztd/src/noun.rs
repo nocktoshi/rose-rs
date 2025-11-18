@@ -114,6 +114,18 @@ impl<T: NounEncode + ?Sized> NounEncode for &T {
     }
 }
 
+impl<T: NounEncode + ?Sized> NounEncode for Box<T> {
+    fn to_noun(&self) -> Noun {
+        (**self).to_noun()
+    }
+}
+
+impl<T: NounDecode> NounDecode for Box<T> {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        Some(Box::new(T::from_noun(noun)?))
+    }
+}
+
 impl NounEncode for Noun {
     fn to_noun(&self) -> Noun {
         self.clone()

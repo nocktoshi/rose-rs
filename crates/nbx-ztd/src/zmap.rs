@@ -1,8 +1,10 @@
 use core::borrow::Borrow;
 
-use crate::{Digest, Hashable, Noun, NounEncode};
+use crate::{Digest, Hashable, Noun, NounDecode, NounEncode};
 use alloc::boxed::Box;
 use alloc::fmt::Debug;
+use alloc::vec;
+use alloc::vec::Vec;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZMap<K, V> {
@@ -29,12 +31,18 @@ impl<K: NounEncode, V: NounEncode> ZMap<K, V> {
         self.root = Some(new_root);
         inserted
     }
-    
-    pub fn get<Q: NounEncode + ?Sized>(&self, key: &Q) -> Option<&V> where K: Borrow<Q> {
+
+    pub fn get<Q: NounEncode + ?Sized>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+    {
         Self::get_inner(self.root.as_ref()?, key)
     }
 
-    fn get_inner<'a, Q: NounEncode + ?Sized>(n: &'a Node<K, V>, key: &Q) -> Option<&'a V> where K: Borrow<Q> {
+    fn get_inner<'a, Q: NounEncode + ?Sized>(n: &'a Node<K, V>, key: &Q) -> Option<&'a V>
+    where
+        K: Borrow<Q>,
+    {
         if Self::tip_eq(&key, &n.key) {
             return Some(&n.value);
         }
@@ -120,7 +128,9 @@ impl<K: NounEncode, V: NounEncode> core::iter::FromIterator<(K, V)> for ZMap<K, 
 
 impl<K: NounEncode + Hashable, V: NounEncode + Hashable> Hashable for ZMap<K, V> {
     fn hash(&self) -> Digest {
-        fn hash_node<K: NounEncode + Hashable, V: NounEncode + Hashable>(node: &Option<Box<Node<K, V>>>) -> Digest {
+        fn hash_node<K: NounEncode + Hashable, V: NounEncode + Hashable>(
+            node: &Option<Box<Node<K, V>>>,
+        ) -> Digest {
             match node {
                 None => 0.hash(),
                 Some(n) => {
@@ -147,5 +157,62 @@ impl<K: NounEncode + Hashable, V: NounEncode> NounEncode for ZMap<K, V> {
             }
         }
         visit(&self.root)
+    }
+}
+
+impl<K: NounDecode, V: NounDecode> NounDecode for Node<K, V> {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        let ((key, value), left, right) = NounDecode::from_noun(noun)?;
+        Some(Self {
+            key,
+            value,
+            left,
+            right,
+        })
+    }
+}
+
+impl<K: NounDecode, V: NounDecode> NounDecode for ZMap<K, V> {
+    fn from_noun(noun: &Noun) -> Option<Self> {
+        let root: Option<Box<Node<K, V>>> = NounDecode::from_noun(noun)?;
+        Some(Self { root })
+    }
+}
+
+pub struct ZMapIntoIterator<K, V> {
+    stack: Vec<Box<Node<K, V>>>,
+}
+
+impl<K, V> Iterator for ZMapIntoIterator<K, V> {
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let cur = self.stack.pop()?;
+        if let Some(n) = cur.left {
+            self.stack.push(n);
+        }
+        if let Some(n) = cur.right {
+            self.stack.push(n);
+        }
+        Some((cur.key, cur.value))
+    }
+}
+
+impl<K, V> IntoIterator for ZMap<K, V> {
+    type Item = (K, V);
+    type IntoIter = ZMapIntoIterator<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut stack = vec![];
+        if let Some(n) = self.root {
+            stack.push(n);
+        }
+        ZMapIntoIterator { stack }
+    }
+}
+
+impl<K, V> From<ZMap<K, V>> for Vec<(K, V)> {
+    fn from(map: ZMap<K, V>) -> Self {
+        map.into_iter().collect()
     }
 }

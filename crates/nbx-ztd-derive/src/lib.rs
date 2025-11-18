@@ -184,6 +184,92 @@ pub fn derive_noun_encode(input: TokenStream) -> TokenStream {
     })
 }
 
+/// Derive macro for implementing the `NounDecode` trait.
+#[proc_macro_derive(NounDecode)]
+pub fn derive_noun_decode(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let impl_body = match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => {
+                let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+
+                if field_names.is_empty() {
+                    quote! {
+                        if noun == nbx_ztd::noun::atom(0) {
+                            Some(Self)
+                        } else {
+                            None
+                        }
+                    }
+                } else {
+                    quote! {
+                        let (#( #field_names ),* ) = nbx_ztd::NounDecode::from_noun(noun)?;
+                        Some(Self {
+                            #( #field_names ),*
+                        })
+                    }
+                }
+            }
+            Fields::Unnamed(fields) => {
+                let field_count = fields.unnamed.len();
+
+                if field_count == 0 {
+                    quote! {
+                        if noun == nbx_ztd::noun::atom(0) {
+                            Some(Self)
+                        } else {
+                            None
+                        }
+                    }
+                } else if field_count == 1 {
+                    quote! { Self(nbx_ztd::NounDecode::from_noun(noun)?) }
+                } else {
+                    let indices: Vec<_> = (0..field_count).map(|i| syn::Index::from(i)).collect();
+                    quote! {
+                        let tup = nbx_ztd::NounDecode::from_noun(noun)?;
+                        Some(Self(
+                            #( tup.#indices ),*
+                        ))
+                    }
+                }
+            }
+            Fields::Unit => quote! {
+                if noun == nbx_ztd::noun::atom(0) {
+                    Some(Self)
+                } else {
+                    None
+                }
+            },
+        },
+        Data::Enum(_) => {
+            return syn::Error::new_spanned(
+                &input,
+                "NounDecode derive macro does not support enums yet",
+            )
+            .to_compile_error()
+            .into();
+        }
+        Data::Union(_) => {
+            return syn::Error::new_spanned(
+                &input,
+                "NounDecode derive macro does not support unions",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    TokenStream::from(quote! {
+        impl nbx_ztd::NounDecode for #name {
+            fn from_noun(noun: &nbx_ztd::Noun) -> Option<Self> {
+                #impl_body
+            }
+        }
+    })
+}
+
 /// Build nested tuple references: (&self.x, (&self.y, &self.z))
 fn build_nested_tuple_refs(field_names: &[&Option<syn::Ident>]) -> proc_macro2::TokenStream {
     let mut iter = field_names.iter().rev();
