@@ -156,6 +156,12 @@ pub enum Version {
     V2,
 }
 
+impl NounEncode for Version {
+    fn to_noun(&self) -> Noun {
+        u32::from(self.clone()).to_noun()
+    }
+}
+
 impl Hashable for Version {
     fn hash(&self) -> Digest {
         match self {

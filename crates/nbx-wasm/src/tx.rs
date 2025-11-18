@@ -9,7 +9,7 @@ use nbx_nockchain_types::{
     tx::{LockPrimitive, LockTim, RawTx, Seed, SpendCondition},
     Nicks,
 };
-use nbx_ztd::{cue, jam, Digest, Hashable as HashableTrait};
+use nbx_ztd::{cue, jam, Digest, Hashable as HashableTrait, NounEncode};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -687,6 +687,7 @@ impl WasmTxBuilder {
         recipient: WasmDigest,
         gift: Nicks,
         fee_per_word: Nicks,
+        fee_override: Option<Nicks>,
         refund_pkh: WasmDigest,
         include_lock_data: bool,
     ) -> Result<WasmTxBuilder, JsValue> {
@@ -703,7 +704,7 @@ impl WasmTxBuilder {
             .collect();
         let internal_notes = internal_notes.map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
-        let builder = TxBuilder::new_simple(
+        let mut builder = TxBuilder::new_simple_base(
             internal_notes,
             recipient.to_internal(),
             gift,
@@ -711,6 +712,14 @@ impl WasmTxBuilder {
             refund_pkh.to_internal(),
             include_lock_data,
         )
+        .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+
+        if let Some(fee) = fee_override {
+            builder.set_fee_and_balance_refund(fee, include_lock_data)
+        } else {
+            builder.subtract_fee_from_refund(include_lock_data)
+        }
+        .and_then(|v| v.subtract_fee_from_refund(include_lock_data))
         .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
         Ok(Self {
@@ -733,7 +742,7 @@ impl WasmTxBuilder {
 
         let tx = builder
             .sign(&signing_key)
-            .validate(1 << 15)
+            .validate()
             .map_err(|v| JsValue::from_str(&v.to_string()))?
             .build();
 
@@ -777,5 +786,17 @@ impl WasmRawTx {
         let pb_tx = PbRawTransaction::from(self.internal.clone());
         serde_wasm_bindgen::to_value(&pb_tx)
             .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+    }
+
+    /// Convert to jammed transaction file for inspecting through CLI
+    #[wasm_bindgen(js_name = toJam)]
+    pub fn to_jam(&self) -> js_sys::Uint8Array {
+        js_sys::Uint8Array::from(
+            &jam((
+                nbx_ztd::Noun::Atom(self.internal.id.to_atom()),
+                self.internal.spends.to_noun(),
+            )
+                .to_noun())[..],
+        )
     }
 }

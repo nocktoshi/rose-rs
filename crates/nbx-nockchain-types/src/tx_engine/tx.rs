@@ -316,13 +316,19 @@ impl Spends {
     }
 }
 
+impl NounEncode for Spends {
+    fn to_noun(&self) -> Noun {
+        ZMap::from_iter(self.0.iter().cloned()).to_noun()
+    }
+}
+
 impl HashableTrait for Spends {
     fn hash(&self) -> Digest {
         ZSet::from_iter(self.0.iter()).hash()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, NounEncode)]
 pub struct RawTx {
     pub version: Version,
     pub id: TxId,

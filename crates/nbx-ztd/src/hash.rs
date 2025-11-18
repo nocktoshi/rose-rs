@@ -1,5 +1,6 @@
 use alloc::{fmt, string::String, vec, vec::Vec};
 use ibig::ops::DivRem;
+use ibig::UBig;
 
 use crate::{
     belt::{Belt, PRIME},
@@ -17,17 +18,18 @@ impl From<[u64; 5]> for Digest {
 }
 
 impl Digest {
-    pub fn to_bytes(&self) -> [u8; 40] {
-        use ibig::UBig;
-
+    pub fn to_atom(&self) -> UBig {
         let p = UBig::from(PRIME);
         let p2 = &p * &p;
         let p3 = &p * &p2;
         let p4 = &p * &p3;
 
         let [a, b, c, d, e] = self.0.map(|b| UBig::from(b.0));
-        let res = a + b * &p + c * p2 + d * p3 + e * p4;
+        a + b * &p + c * p2 + d * p3 + e * p4
+    }
 
+    pub fn to_bytes(&self) -> [u8; 40] {
+        let res = self.to_atom();
         let mut bytes = [0u8; 40];
         let res_bytes = res.to_be_bytes();
         bytes[40 - res_bytes.len()..].copy_from_slice(&res_bytes);

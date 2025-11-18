@@ -206,12 +206,14 @@ impl SpendBuilder {
 
 pub struct TxBuilder {
     spends: BTreeMap<Name, SpendBuilder>,
+    fee_per_word: Nicks,
 }
 
 impl TxBuilder {
-    pub fn new() -> Self {
+    pub fn new(fee_per_word: Nicks) -> Self {
         Self {
             spends: BTreeMap::new(),
+            fee_per_word,
         }
     }
 
@@ -224,6 +226,7 @@ impl TxBuilder {
         notes: Vec<(Note, SpendCondition)>,
         recipient: Digest,
         gift: Nicks,
+        fee_per_word: Nicks,
         refund_pkh: Digest,
         include_lock_data: bool,
     ) -> Result<Self, BuildError> {
@@ -232,7 +235,7 @@ impl TxBuilder {
         }
 
         let refund_lock = SpendCondition::new_pkh(Pkh::single(refund_pkh));
-        let mut builder = TxBuilder::new();
+        let mut builder = TxBuilder::new(fee_per_word);
 
         let mut remaining_gift = gift;
 
@@ -271,9 +274,9 @@ impl TxBuilder {
         include_lock_data: bool,
     ) -> Result<Self, BuildError> {
         let mut builder =
-            Self::new_simple_base(notes, recipient, gift, refund_pkh, include_lock_data)?;
+            Self::new_simple_base(notes, recipient, gift, fee_per_word, refund_pkh, include_lock_data)?;
         builder
-            .subtract_fee_from_refund(fee_per_word, include_lock_data)?
+            .subtract_fee_from_refund(include_lock_data)?
             .remove_unused_notes();
         Ok(builder)
     }
@@ -290,9 +293,9 @@ impl TxBuilder {
         self
     }
 
-    pub fn validate(&mut self, fee_per_word: Nicks) -> Result<&mut Self, BuildError> {
+    pub fn validate(&mut self) -> Result<&mut Self, BuildError> {
         let cur_fee = self.cur_fee();
-        let needed_fee = self.calc_fee(fee_per_word);
+        let needed_fee = self.calc_fee();
         if cur_fee < needed_fee {
             return Err(BuildError::InvalidFee(needed_fee, cur_fee));
         }
@@ -326,15 +329,15 @@ impl TxBuilder {
         self.spends.values().map(|v| v.spend.fee).sum::<Nicks>()
     }
 
-    pub fn calc_fee(&self, fee_per_word: Nicks) -> Nicks {
-        let mut fee = Spend::fee_for_many(self.spends.values().map(|v| &v.spend), fee_per_word);
+    pub fn calc_fee(&self) -> Nicks {
+        let mut fee = Spend::fee_for_many(self.spends.values().map(|v| &v.spend), self.fee_per_word);
 
         for s in self.spends.values() {
             for mu in s.missing_unlocks() {
                 match mu {
                     MissingUnlocks::Pkh { num_sigs, .. } => {
                         // Heuristic for missing signatures. It is perhaps 30, but perhaps not.
-                        fee += 30 * num_sigs * fee_per_word;
+                        fee += 30 * num_sigs * self.fee_per_word;
                     }
                     // TODO: handle hax
                     _ => (),
@@ -354,10 +357,9 @@ impl TxBuilder {
 
     pub fn subtract_fee_from_refund(
         &mut self,
-        fee_per_word: Nicks,
         include_lock_data: bool,
     ) -> Result<&mut Self, BuildError> {
-        let fee = self.calc_fee(fee_per_word);
+        let fee = self.calc_fee();
         self.set_fee_and_balance_refund(fee, include_lock_data)
     }
 
@@ -429,7 +431,7 @@ impl core::fmt::Display for BuildError {
             BuildError::InvalidFee(expected, got) => {
                 write!(
                     f,
-                    "Insifficient fee for transaction (needed: {expected}, got: {got})"
+                    "Insufficient fee for transaction (needed: {expected}, got: {got})"
                 )
             }
             BuildError::UnbalancedSpends => write!(
@@ -488,6 +490,7 @@ mod tests {
             vec![(note.clone(), spend_condition.clone())],
             recipient,
             gift,
+            1,
             refund_pkh,
             true,
         )
@@ -495,7 +498,7 @@ mod tests {
         .set_fee_and_balance_refund(fee, true)
         .unwrap()
         .sign(&private_key)
-        .validate(1)
+        .validate()
         .unwrap()
         .build();
 
@@ -516,7 +519,7 @@ mod tests {
         )
         .unwrap();
 
-        let fee1 = builder.calc_fee(fee_per_word);
+        let fee1 = builder.calc_fee();
 
         let tx = builder.sign(&private_key).build();
 
