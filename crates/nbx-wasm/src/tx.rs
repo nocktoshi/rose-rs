@@ -603,6 +603,14 @@ impl WasmSpendCondition {
         Ok(WasmDigest::from_internal(&condition.hash()))
     }
 
+    #[wasm_bindgen(js_name = firstName)]
+    pub fn first_name(&self) -> Result<WasmDigest, JsValue> {
+        let condition = self
+            .to_internal()
+            .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+        Ok(WasmDigest::from_internal(&condition.first_name()))
+    }
+
     fn to_internal(&self) -> Result<SpendCondition, String> {
         let mut primitives = Vec::new();
         for prim in &self.primitives {
