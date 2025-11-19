@@ -7,8 +7,9 @@ use nbx_ztd_derive::{Hashable, NounDecode, NounEncode};
 use super::note::{Name, NoteData, Source, TimelockRange, Version};
 use crate::{Nicks, Pkh};
 
-#[derive(Debug, Clone, Hashable, NounEncode, NounDecode)]
+#[derive(Debug, Clone, NounEncode, NounDecode)]
 pub struct Seed {
+    pub output_source: Option<Source>,
     pub lock_root: Digest,
     pub note_data: NoteData,
     pub gift: Nicks,
@@ -28,6 +29,7 @@ impl Seed {
             note_data.push_pkh(Pkh::single(pkh));
         }
         Self {
+            output_source: None,
             lock_root,
             note_data,
             gift,
@@ -36,26 +38,60 @@ impl Seed {
     }
 }
 
+impl HashableTrait for Seed {
+    fn hash(&self) -> Digest {
+        // output source is omitted
+        (
+            &self.lock_root,
+            &self.note_data,
+            &self.gift,
+            &self.parent_hash,
+        )
+            .hash()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SigHashSeed<'a>(&'a Seed);
+
+impl<'a> HashableTrait for SigHashSeed<'a> {
+    fn hash(&self) -> Digest {
+        // output source is included
+        (
+            &self.0.output_source,
+            &self.0.lock_root,
+            &self.0.note_data,
+            &self.0.gift,
+            &self.0.parent_hash,
+        )
+            .hash()
+    }
+}
+
+impl<'a> NounEncode for SigHashSeed<'a> {
+    fn to_noun(&self) -> Noun {
+        self.0.to_noun()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Seeds(pub Vec<Seed>);
 
 impl Seeds {
     pub fn sig_hash(&self) -> Digest {
-        // NOTE: we assume output-source=~
-        let output_source = Option::<Source>::None;
-        ZSet::from_iter(self.0.iter().map(|seed| (&output_source, seed))).hash()
+        ZSet::from_iter(self.0.iter().map(SigHashSeed)).hash()
     }
 }
 
 impl HashableTrait for Seeds {
     fn hash(&self) -> Digest {
-        ZSet::from_iter(self.0.iter().map(Seed::hash)).hash()
+        ZSet::from_iter(&self.0).hash()
     }
 }
 
 impl NounEncode for Seeds {
     fn to_noun(&self) -> Noun {
-        ZSet::from_iter(self.0.iter()).to_noun()
+        ZSet::from_iter(&self.0).to_noun()
     }
 }
 
@@ -129,7 +165,7 @@ impl Spend {
 
 impl HashableTrait for Spend {
     fn hash(&self) -> Digest {
-        (1, &self.witness, &self.seeds, &self.fee).hash()
+        (Version::V1, &self.witness, &self.seeds, &self.fee).hash()
     }
 }
 
@@ -144,11 +180,11 @@ impl HashableTrait for PkhSignature {
 
 impl NounEncode for PkhSignature {
     fn to_noun(&self) -> Noun {
-        ZSet::from_iter(self.0.iter()).to_noun()
+        ZSet::from_iter(&self.0).to_noun()
     }
 }
 
-#[derive(Debug, Clone, NounEncode)]
+#[derive(Debug, Clone, Hashable, NounEncode)]
 pub struct Witness {
     pub lock_merkle_proof: LockMerkleProof,
     pub pkh_signature: PkhSignature,
@@ -172,19 +208,6 @@ impl Witness {
     }
 }
 
-impl HashableTrait for Witness {
-    fn hash(&self) -> Digest {
-        [
-            self.lock_merkle_proof.hash(),
-            self.pkh_signature.hash(),
-            self.hax_map.hash(),
-            self.tim.to_noun().hash(), // tim
-        ]
-        .as_slice()
-        .hash()
-    }
-}
-
 #[derive(Debug, Clone, NounEncode)]
 pub struct LockMerkleProof {
     pub spend_condition: SpendCondition,
@@ -197,7 +220,7 @@ impl HashableTrait for LockMerkleProof {
         // NOTE: lmao
         let axis_mold_hash: Digest =
             "6mhCSwJQDvbkbiPAUNjetJtVoo1VLtEhmEYoU4hmdGd6ep1F6ayaV4A".into();
-        (&self.spend_condition.hash(), (axis_mold_hash, &self.proof)).hash()
+        (&self.spend_condition.hash(), axis_mold_hash, &self.proof).hash()
     }
 }
 
@@ -324,7 +347,7 @@ impl NounEncode for Spends {
 
 impl HashableTrait for Spends {
     fn hash(&self) -> Digest {
-        ZSet::from_iter(self.0.iter()).hash()
+        ZSet::from_iter(&self.0).hash()
     }
 }
 

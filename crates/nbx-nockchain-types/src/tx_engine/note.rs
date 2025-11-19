@@ -27,13 +27,13 @@ impl Pkh {
 
 impl Hashable for Pkh {
     fn hash(&self) -> Digest {
-        (self.m, ZSet::from_iter(self.hashes.iter())).hash()
+        (self.m, ZSet::from_iter(&self.hashes)).hash()
     }
 }
 
 impl NounEncode for Pkh {
     fn to_noun(&self) -> Noun {
-        (self.m, ZSet::from_iter(self.hashes.iter())).to_noun()
+        (self.m, ZSet::from_iter(&self.hashes)).to_noun()
     }
 }
 
@@ -69,7 +69,7 @@ impl NoteData {
     pub fn push_pkh(&mut self, pkh: Pkh) {
         self.0.push(NoteDataEntry {
             key: "lock".to_string(),
-            val: (0, ("pkh", (pkh.m, ZSet::from_iter(pkh.hashes.iter()))), 0).to_noun(),
+            val: (0, ("pkh", &pkh), 0).to_noun(),
         });
     }
 
@@ -90,7 +90,7 @@ impl NoteData {
 
 impl NounEncode for NoteData {
     fn to_noun(&self) -> Noun {
-        ZSet::from_iter(self.0.iter()).to_noun()
+        ZSet::from_iter(&self.0).to_noun()
     }
 }
 
@@ -104,7 +104,7 @@ impl NounDecode for NoteData {
 
 impl Hashable for NoteData {
     fn hash(&self) -> Digest {
-        ZSet::from_iter(self.0.iter()).hash()
+        ZSet::from_iter(&self.0).hash()
     }
 }
 
@@ -211,7 +211,7 @@ impl Name {
     }
 }
 
-#[derive(Debug, Clone, Hashable, NounEncode)]
+#[derive(Debug, Clone, Hashable, NounEncode, NounDecode)]
 pub struct Source {
     pub hash: Digest,
     pub is_coinbase: bool,

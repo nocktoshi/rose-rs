@@ -134,26 +134,38 @@ impl<T: Hashable> Hashable for Option<T> {
     }
 }
 
-impl<A: Hashable, B: Hashable> Hashable for (A, B) {
+impl Hashable for () {
     fn hash(&self) -> Digest {
-        let mut belts = Vec::<Belt>::with_capacity(10);
-        belts.extend_from_slice(&self.0.hash().0);
-        belts.extend_from_slice(&self.1.hash().0);
-        Digest(hash_fixed(&mut belts).map(|u| Belt(u)))
+        0.hash()
     }
 }
 
-impl<A: Hashable, B: Hashable, C: Hashable> Hashable for (A, B, C) {
-    fn hash(&self) -> Digest {
-        (&self.0, (&self.1, &self.2)).hash()
-    }
+macro_rules! impl_hashable_for_tuple {
+    ($T0:ident) => {};
+    ($T0:ident, $T1:ident) => {
+        impl<$T0: Hashable, $T1: Hashable> Hashable for ($T0, $T1) {
+            fn hash(&self) -> Digest {
+                let mut belts = Vec::<Belt>::with_capacity(10);
+                belts.extend_from_slice(&self.0.hash().0);
+                belts.extend_from_slice(&self.1.hash().0);
+                Digest(hash_fixed(&mut belts).map(|u| Belt(u)))
+            }
+        }
+    };
+    ($T:ident, $($U:ident),+) => {
+        impl<$T: Hashable, $($U: Hashable),*> Hashable for ($T, $($U),*) {
+            fn hash(&self) -> Digest {
+                #[allow(non_snake_case)]
+                let ($T, $($U),*) = self;
+                ($T, ($($U,)*)).hash()
+            }
+        }
+
+        impl_hashable_for_tuple!($($U),*);
+    };
 }
 
-impl<A: Hashable, B: Hashable, C: Hashable, D: Hashable> Hashable for (A, B, C, D) {
-    fn hash(&self) -> Digest {
-        (&self.0, (&self.1, (&self.2, &self.3))).hash()
-    }
-}
+impl_hashable_for_tuple!(A, B, C, D, E, F, G, H, I, J, K);
 
 impl<T: Hashable> Hashable for &[T] {
     fn hash(&self) -> Digest {

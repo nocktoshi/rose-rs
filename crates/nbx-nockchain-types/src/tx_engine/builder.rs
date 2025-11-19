@@ -23,7 +23,7 @@ pub enum MissingUnlocks {
 }
 
 #[derive(Clone, Debug)]
-struct SpendBuilder {
+pub struct SpendBuilder {
     note: Note,
     spend: Spend,
     spend_condition: SpendCondition,
@@ -67,7 +67,9 @@ impl SpendBuilder {
                 - self.spend.fee
                 - self.spend.seeds.0.iter().map(|v| v.gift).sum::<u64>();
             if refund > 0 {
-                self.build_seed(rl, refund, include_lock_data);
+                let seed = self.build_seed(rl, refund, include_lock_data);
+                // NOTE: by convention, the refund seed is always first
+                self.spend.seeds.0.insert(0, seed);
             }
         }
         self
@@ -80,31 +82,24 @@ impl SpendBuilder {
     }
 
     pub fn is_balanced(&self) -> bool {
-        self.note
-            .assets
-            .wrapping_sub(self.spend.fee)
-            .wrapping_sub(self.spend.seeds.0.iter().map(|v| v.gift).sum::<u64>())
-            == 0
+        let spend_sum: Nicks = self.spend.seeds.0.iter().map(|v| v.gift).sum();
+        self.note.assets == spend_sum + self.spend.fee
     }
 
-    pub fn build_seed(
-        &mut self,
-        lock: SpendCondition,
-        gift: Nicks,
-        include_lock_data: bool,
-    ) -> &mut Self {
+    pub fn build_seed(&self, lock: SpendCondition, gift: Nicks, include_lock_data: bool) -> Seed {
         let lock_root = lock.hash();
         let mut note_data = NoteData::empty();
         if include_lock_data {
             note_data.push_lock(lock);
         }
         let parent_hash = self.note.hash();
-        self.seed(Seed {
+        Seed {
+            output_source: None,
             lock_root,
             note_data,
             gift,
             parent_hash,
-        })
+        }
     }
 
     pub fn seed(&mut self, seed: Seed) -> &mut Self {
@@ -246,11 +241,12 @@ impl TxBuilder {
 
             let mut spend = SpendBuilder::new(note, spend_condition, Some(refund_lock.clone()));
             if gift_portion > 0 {
-                spend.build_seed(
+                let seed = spend.build_seed(
                     SpendCondition::new_pkh(Pkh::single(recipient)),
                     gift_portion,
                     include_lock_data,
                 );
+                spend.seed(seed);
             }
             spend.compute_refund(include_lock_data);
             assert!(spend.is_balanced());
@@ -472,7 +468,7 @@ mod tests {
     use nbx_crypto::derive_master_key;
 
     #[test]
-    fn test_vector() {
+    fn test_builder() {
         let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
         let private_key = derive_master_key(&mnemonic.to_seed(""))
             .private_key
@@ -489,10 +485,10 @@ mod tests {
             assets: 4294967296,
         };
 
-        let recipient = "6psXufjYNRxffRx72w8FF9b5MYg8TEmWq2nEFkqYm51yfqsnkJu8XqX".into();
+        let recipient = "2nEFkqYm51yfqsYgfRx72w8FF9bmWqnkJu8XqY8T7psXufjYNRxf5ME".into();
         let gift = 1234567;
         let fee = 2850816;
-        let refund_pkh = "6psXufjYNRxffRx72w8FF9b5MYg8TEmWq2nEFkqYm51yfqsnkJu8XqY".into();
+        let refund_pkh = "6psXufjYNRxffRx72w8FF9b5MYg8TEmWq2nEFkqYm51yfqsnkJu8XqX".into();
         let spend_condition = SpendCondition(vec![
             LockPrimitive::Pkh(Pkh::single(private_key.public_key().hash())),
             LockPrimitive::Tim(LockTim::coinbase()),
@@ -515,7 +511,7 @@ mod tests {
 
         assert_eq!(
             tx.id.to_string(),
-            "87UEseTQfzPb1GDdqEpbBRvAWXxfnzHauMpFyxYhWuc1R4zJQFNKh8D",
+            "3pmkA1knKhJzmd28t5TULP9DADK7GhWsHaNSTpPcGcN4nxzrWsDK2xe",
             "{tx:?}"
         );
 
