@@ -95,11 +95,17 @@ impl NounEncode for Seeds {
     }
 }
 
-#[derive(Debug, Clone, NounEncode)]
+#[derive(Debug, Clone)]
 pub struct Spend {
     pub witness: Witness,
     pub seeds: Seeds,
     pub fee: Nicks,
+}
+
+impl NounEncode for Spend {
+    fn to_noun(&self) -> Noun {
+        (Version::V1, &self.witness, &self.seeds, &self.fee).to_noun()
+    }
 }
 
 impl AsRef<Spend> for Spend {
@@ -153,7 +159,10 @@ impl Spend {
     }
 
     pub fn add_signature(&mut self, key: PublicKey, signature: Signature) {
-        self.witness.pkh_signature.0.push((key, signature));
+        self.witness
+            .pkh_signature
+            .0
+            .push((key.hash(), key, signature));
     }
 
     pub fn add_preimage(&mut self, preimage: Noun) -> Digest {
@@ -170,11 +179,11 @@ impl HashableTrait for Spend {
 }
 
 #[derive(Debug, Clone)]
-pub struct PkhSignature(pub Vec<(PublicKey, Signature)>);
+pub struct PkhSignature(pub Vec<(Digest, PublicKey, Signature)>);
 
 impl HashableTrait for PkhSignature {
     fn hash(&self) -> Digest {
-        ZSet::from_iter(self.0.iter().map(|e| (e.0.hash(), e).hash())).hash()
+        ZSet::from_iter(&self.0).hash()
     }
 }
 
@@ -507,7 +516,7 @@ mod tests {
 
         let tx = RawTx::new(spends);
         check_hash(
-            "transaction name",
+            "transaction id",
             &tx.id,
             "3j4vkn72mcpVtQrTgNnYyoF3rDuYax3aebT5axu3Qe16jm9x2wLtepW",
         );

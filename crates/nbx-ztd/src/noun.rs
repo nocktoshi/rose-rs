@@ -19,9 +19,28 @@ pub enum Noun {
 
 impl Noun {
     pub fn to_string(&self) -> String {
+        fn autocons(cell: &Noun) -> String {
+            match cell {
+                Noun::Atom(a) => format!("{}", a),
+                Noun::Cell(left, right) => {
+                    if let Noun::Cell(_, _) = right.as_ref() {
+                        format!("{} {}", left.to_string(), autocons(right))
+                    } else {
+                        format!("{} {}", left.to_string(), right.to_string())
+                    }
+                }
+            }
+        }
+
         match self {
             Noun::Atom(a) => format!("{}", a),
-            Noun::Cell(left, right) => format!("[{} {}]", left.to_string(), right.to_string()),
+            Noun::Cell(left, right) => {
+                if let Noun::Cell(_, _) = right.as_ref() {
+                    format!("[{} {}]", left.to_string(), autocons(right))
+                } else {
+                    format!("[{} {}]", left.to_string(), right.to_string())
+                }
+            }
         }
     }
 }
@@ -375,11 +394,7 @@ impl<T: NounDecode> NounDecode for Vec<T> {
 
 impl NounEncode for &str {
     fn to_noun(&self) -> Noun {
-        atom(
-            self.bytes()
-                .enumerate()
-                .fold(0u64, |acc, (i, byte)| acc | ((byte as u64) << (i * 8))),
-        )
+        Noun::Atom(UBig::from_le_bytes(self.as_bytes()))
     }
 }
 

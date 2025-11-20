@@ -1,5 +1,5 @@
 use nbx_nockchain_types::*;
-use nbx_ztd::{jam, Belt, Digest, Hashable as ZHashable};
+use nbx_ztd::{jam, Belt, Digest};
 
 use crate::common::{ConversionError, Required};
 use crate::pb::common::v1::{
@@ -294,7 +294,7 @@ impl From<PkhSignature> for PbPkhSignature {
             entries: signature
                 .0
                 .into_iter()
-                .map(|(pubkey, sig)| {
+                .map(|(pkh, pubkey, sig)| {
                     // Convert UBig to Belt arrays for c and s
                     let c_bytes = sig.c.to_le_bytes();
                     let s_bytes = sig.s.to_le_bytes();
@@ -312,7 +312,7 @@ impl From<PkhSignature> for PbPkhSignature {
                     }
 
                     crate::pb::common::v2::PkhSignatureEntry {
-                        hash: Some(PbHash::from(pubkey.hash())),
+                        hash: Some(PbHash::from(pkh)),
                         pubkey: Some(crate::pb::common::v1::SchnorrPubkey {
                             value: Some(crate::pb::common::v1::CheetahPoint {
                                 x: Some(crate::pb::common::v1::SixBelt {

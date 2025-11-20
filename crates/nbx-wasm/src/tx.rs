@@ -787,6 +787,11 @@ impl WasmRawTx {
         WasmDigest::from_internal(&self.internal.id)
     }
 
+    #[wasm_bindgen(getter)]
+    pub fn name(&self) -> String {
+        self.internal.id.to_string()
+    }
+
     fn from_internal(tx: &RawTx) -> Self {
         Self {
             internal: tx.clone(),
@@ -805,12 +810,7 @@ impl WasmRawTx {
     /// Convert to jammed transaction file for inspecting through CLI
     #[wasm_bindgen(js_name = toJam)]
     pub fn to_jam(&self) -> js_sys::Uint8Array {
-        js_sys::Uint8Array::from(
-            &jam((
-                nbx_ztd::Noun::Atom(self.internal.id.to_atom()),
-                self.internal.spends.to_noun(),
-            )
-                .to_noun())[..],
-        )
+        let n = (&self.internal.id.to_string(), &self.internal.spends).to_noun();
+        js_sys::Uint8Array::from(&jam(n)[..])
     }
 }

@@ -121,11 +121,10 @@ impl SpendBuilder {
             let mut valid_pkh = BTreeSet::new();
 
             if p.m > 0 {
-                for (pk, _) in &self.spend.witness.pkh_signature.0 {
-                    let pkh = pk.hash();
-                    valid_pkh.insert(pkh);
-                    if !checked_pkh.contains(&pkh) && p.hashes.contains(&pkh) {
-                        checked_pkh.insert(pkh);
+                for (pkh, _, _) in &self.spend.witness.pkh_signature.0 {
+                    valid_pkh.insert(*pkh);
+                    if !checked_pkh.contains(pkh) && p.hashes.contains(pkh) {
+                        checked_pkh.insert(*pkh);
                         if checked_pkh.len() as u64 >= p.m {
                             break;
                         }
@@ -466,6 +465,7 @@ mod tests {
     use alloc::{string::ToString, vec};
     use bip39::Mnemonic;
     use nbx_crypto::derive_master_key;
+    use nbx_ztd::{jam, NounEncode};
 
     #[test]
     fn test_builder() {
@@ -512,7 +512,6 @@ mod tests {
         assert_eq!(
             tx.id.to_string(),
             "3pmkA1knKhJzmd28t5TULP9DADK7GhWsHaNSTpPcGcN4nxzrWsDK2xe",
-            "{tx:?}"
         );
 
         let mut tx = TxBuilder::new_simple_base(
@@ -546,7 +545,7 @@ mod tests {
 
         let tx = builder.sign(&private_key).build();
 
-        assert_eq!(tx.spends.fee(fee_per_word), 2320000);
+        assert_eq!(tx.spends.fee(fee_per_word), 2520000);
         assert_eq!(fee1, 2320000);
     }
 
@@ -563,5 +562,57 @@ mod tests {
             sc.first_name().to_string(),
             "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH",
         )
+    }
+
+    #[test]
+    fn test_jam_vector() {
+        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
+        let private_key = derive_master_key(&mnemonic.to_seed(""))
+            .private_key
+            .unwrap();
+        let note = Note {
+            version: Version::V1,
+            origin_page: 13,
+            name: Name::new(
+                "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH".into(),
+                "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvM".into(),
+            ),
+            note_data: NoteData::empty(),
+            assets: 4294967296,
+        };
+        let recipient = "2nEFkqYm51yfqsYgfRx72w8FF9bmWqnkJu8XqY8T7psXufjYNRxf5ME".into();
+        let gift = 1234567;
+        let fee = 2850816;
+        let refund_pkh = "6psXufjYNRxffRx72w8FF9b5MYg8TEmWq2nEFkqYm51yfqsnkJu8XqX".into();
+        let spend_condition = SpendCondition(vec![
+            LockPrimitive::Pkh(Pkh::single(private_key.public_key().hash())),
+            LockPrimitive::Tim(LockTim::coinbase()),
+        ]);
+        let tx = TxBuilder::new_simple_base(
+            vec![(note.clone(), spend_condition.clone())],
+            recipient,
+            gift,
+            1,
+            refund_pkh,
+            true,
+        )
+        .unwrap()
+        .set_fee_and_balance_refund(fee, true)
+        .unwrap()
+        .sign(&private_key)
+        .validate()
+        .unwrap()
+        .build();
+        assert_eq!(
+            tx.id.to_string(),
+            "3pmkA1knKhJzmd28t5TULP9DADK7GhWsHaNSTpPcGcN4nxzrWsDK2xe",
+        );
+
+        let mut jam_vec = jam((&tx.id.to_string(), &tx.spends).to_noun());
+        jam_vec.reverse();
+        assert_eq!(
+            bs58::encode(jam_vec).into_string(),
+            "We2QrLoo6X48Y58ZPCBKuv1oy859epNaxa9CNvstysytqWhtNxzuViSDShA7VFXevc62rNDcGqLiaggx5gswVJ5SSE9JKwMNZeMiyacmWGNtj1jk287RAvybG7BZ6MiwwZDBaTQgXxvvRmJBseKFnz8Rt3SQbU4zkPNkfbt4n9ZNHGTfqPhYiUhPwcf5PRG7pEbtAUZf7HXpfWPQffBcvMKuJdErUEytq27p2kjqzeqqbReCiRDGmfe6DF8JnVvo6ePiyrhscA1tdaH1P6jUphxeFnHAMUEd4E5WhHHx2YceQciw5NxnCkbUbauz4HEj7ioaZtWX3MfXfebLuiVf75eFNJa2wKtgrEfcevy6LT2XWDXGJPk59D8xUaSjPzNwwGwj1tvqxYQt9G3BBZvVDpS1aRvWRdjd1NmakevKfGCwaAyVpGJsvacgJxa1918ab5EWj4ZSXKZsar2oWohPN1Fi4EAFuL5MFFeJdtmtbBTEE8qGmJZ56XTeByszhhmPfbJY8XXqEigNVNxX2US5mtv6MyeFvhCXcQGGcENYcFUv4tHDwrx3Hf7GUXqKsjpR53dbGG54T7gmQ9NEAiFFwRoVRiCfBNajDCCixEQqVa4BLtfmPmZEtfSS9Q9qpMAFiXTYdErFg5GxW6Qb7aXh5XCAq3aW67fqCs3Q6x6SL2si9zFDXsX9QAyjYqXYAjYVCrV4UYfRdmiB3jsJBRacAmbqj2KjAzwKHaJNtr4vmwKuTave2vFFE46yxG3yRUxm9oZGBD2oBLsfTasV2xj3ZoxPvdPjy2sutsQVboXVvS91ux8umyJQ6TdcNnWyKqa4r2fkAhDGMe3Kb2Ag7b8VemsAiR5ijcQyj2q5qHMUUTKYXA7jzDh8WnQDtFg3z3ehVtdZLS8uh4RyubmSoeDDxMVYh9yqMBca5dRb5QPQtmRw7cYoZxRigNqaRCJdbM1VxJAHQkVpmSvuHi3NucJbZRzB8VbWsmAWx57WC96MLtQDNiB1a",
+        );
     }
 }
