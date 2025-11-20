@@ -7,6 +7,13 @@ use nbx_ztd_derive::{Hashable, NounDecode, NounEncode};
 use super::note::{Name, NoteData, Source, TimelockRange, Version};
 use crate::{Nicks, Pkh};
 
+fn noun_words(n: &Noun) -> u64 {
+    match n {
+        Noun::Atom(_) => 1,
+        Noun::Cell(l, r) => noun_words(l) + noun_words(r),
+    }
+}
+
 #[derive(Debug, Clone, NounEncode, NounDecode)]
 pub struct Seed {
     pub output_source: Option<Source>,
@@ -35,6 +42,10 @@ impl Seed {
             gift,
             parent_hash,
         }
+    }
+
+    pub fn note_data_words(&self) -> u64 {
+        noun_words(&self.note_data.to_noun())
     }
 }
 
@@ -115,31 +126,33 @@ impl AsRef<Spend> for Spend {
 }
 
 impl Spend {
+    pub const MIN_FEE: u64 = 256;
+
     pub fn fee_for_many<T: AsRef<Spend>>(
         spends: impl Iterator<Item = T>,
         per_word: Nicks,
     ) -> Nicks {
-        const MIN_FEE: u64 = 256;
-        let words = spends
-            .map(|v| v.as_ref().calc_words())
-            .map(|v| v.0 + v.1)
+        let fee = spends
+            .map(|v| v.as_ref().unclamped_fee(per_word))
             .sum::<u64>();
-        (words * per_word).max(MIN_FEE)
+        fee.max(Self::MIN_FEE)
+    }
+
+    pub fn unclamped_fee(
+        &self,
+        per_word: Nicks
+    ) -> Nicks {
+        let (a, b) = self.calc_words();
+        (a + b) * per_word
     }
 
     pub fn calc_words(&self) -> (u64, u64) {
-        fn noun_words(n: &Noun) -> u64 {
-            match n {
-                Noun::Atom(_) => 1,
-                Noun::Cell(l, r) => noun_words(l) + noun_words(r),
-            }
-        }
 
         let seed_words: u64 = self
             .seeds
             .0
             .iter()
-            .map(|seed| noun_words(&seed.note_data.to_noun()))
+            .map(|seed| seed.note_data_words())
             .sum();
         let witness_words = noun_words(&self.witness.to_noun());
 

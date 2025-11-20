@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -9,6 +11,7 @@ use nbx_nockchain_types::{
     tx::{LockPrimitive, LockTim, RawTx, Seed, SpendCondition},
     Nicks,
 };
+use nbx_nockchain_types::{MissingUnlocks, Source, SpendBuilder};
 use nbx_ztd::{cue, jam, Digest, Hashable as HashableTrait, NounEncode};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -155,6 +158,42 @@ impl WasmTimelockRange {
 
     fn to_internal(&self) -> TimelockRange {
         TimelockRange::new(self.min, self.max)
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct WasmSource {
+    #[wasm_bindgen(skip)]
+    pub hash: WasmDigest,
+    #[wasm_bindgen(skip)]
+    pub is_coinbase: bool,
+}
+
+#[wasm_bindgen]
+impl WasmSource {
+    #[wasm_bindgen(getter)]
+    pub fn hash(&self) -> WasmDigest {
+        self.hash.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn is_coinbase(&self) -> bool {
+        self.is_coinbase
+    }
+
+    fn to_internal(&self) -> Source {
+        Source {
+            hash: self.hash.to_internal(),
+            is_coinbase: self.is_coinbase,
+        }
+    }
+
+    fn from_internal(internal: &Source) -> Self {
+        Self {
+            hash: WasmDigest::from_internal(&internal.hash),
+            is_coinbase: internal.is_coinbase,
+        }
     }
 }
 
@@ -623,9 +662,13 @@ impl WasmSpendCondition {
 #[wasm_bindgen]
 pub struct WasmSeed {
     #[wasm_bindgen(skip)]
+    pub output_source: Option<WasmSource>,
+    #[wasm_bindgen(skip)]
     pub lock_root: WasmDigest,
     #[wasm_bindgen(skip)]
     pub gift: Nicks,
+    #[wasm_bindgen(skip)]
+    pub note_data: WasmNoteData,
     #[wasm_bindgen(skip)]
     pub parent_hash: WasmDigest,
 }
@@ -645,11 +688,7 @@ impl WasmSeed {
             parent_hash.to_internal(),
             include_lock_data,
         );
-        Self {
-            lock_root: WasmDigest::from_internal(&seed.lock_root),
-            gift,
-            parent_hash,
-        }
+        seed.into()
     }
 
     #[wasm_bindgen(getter, js_name = lockRoot)]
@@ -666,6 +705,28 @@ impl WasmSeed {
     pub fn parent_hash(&self) -> WasmDigest {
         self.parent_hash.clone()
     }
+
+    fn to_internal(&self) -> Result<Seed, String> {
+        Ok(Seed {
+            output_source: self.output_source.as_ref().map(WasmSource::to_internal),
+            lock_root: self.lock_root.to_internal(),
+            gift: self.gift,
+            note_data: self.note_data.to_internal()?,
+            parent_hash: self.parent_hash.to_internal(),
+        })
+    }
+}
+
+impl From<Seed> for WasmSeed {
+    fn from(value: Seed) -> Self {
+        Self {
+            output_source: value.output_source.as_ref().map(WasmSource::from_internal),
+            lock_root: WasmDigest::from_internal(&value.lock_root),
+            gift: value.gift,
+            note_data: WasmNoteData::from_internal(&value.note_data),
+            parent_hash: WasmDigest::from_internal(&value.parent_hash),
+        }
+    }
 }
 
 // ============================================================================
@@ -679,18 +740,58 @@ pub struct WasmTxBuilder {
 
 #[wasm_bindgen]
 impl WasmTxBuilder {
-    /// Create a simple transaction builder
-    #[wasm_bindgen(js_name = newSimple)]
-    pub fn new_simple(
+    /// Create an empty transaction builder
+    #[wasm_bindgen(constructor)]
+    pub fn new(fee_per_word: Nicks) -> Self {
+        Self {
+            builder: TxBuilder::new(fee_per_word),
+        }
+    }
+
+    /// Perform a simple-spend on this builder.
+    ///
+    /// It is HIGHLY recommended to not mix `simpleSpend` with other types of spends.
+    ///
+    /// This performs a fairly complex set of operations, in order to mimic behavior of nockchain
+    /// CLI wallet's create-tx option. Note that we do not do 1-1 mapping of that functionality,
+    /// most notably - if `recipient` is the same as `refund_pkh`, we will create 1 seed, while the
+    /// CLI wallet will create 2.
+    ///
+    /// Another difference is that you should call `sign` and `validate` after calling this method.
+    ///
+    /// Internally, the transaction builder takes ALL of the `notes` provided, and stores them for
+    /// fee adjustments. If there are multiple notes being used, our fee setup also differs from
+    /// the CLI, because we first greedily spend the notes out, and then take fees from any
+    /// remaining refunds.
+    ///
+    /// This function prioritizes using the least number of notes possible, because that lowers the
+    /// fee used.
+    ///
+    /// You may choose to override the fee with `fee_override`, but do note that `validate` will
+    /// fail, in case this fee is too small.
+    ///
+    /// `include_lock_data` can be used to include `%lock` key in note-data, with the
+    /// `SpendCondition` used. However, note-data costs 1 << 15 nicks, which means, it can get
+    /// expensive.
+    ///
+    /// Optional parameter `remove_unused_notes`, if set to false, will keep the notes in the
+    /// transaction builder. This is meant to be used whenever additional operations are performed
+    /// on the builder, such as additional spends, or `addPreimage` calls. All of these increase
+    /// the required fee (which can be checked with `calcFee`), and unused notes can then be used
+    /// to adjust fees with `setFeeAndBalanceRefund` or `recalcAndSetFee`. Once all operations are
+    /// done, one should call `removeUnusedNotes` to ensure these notes are not used within the
+    /// transaction.
+    #[wasm_bindgen(js_name = simpleSpend)]
+    pub fn simple_spend(
+        &mut self,
         notes: Vec<WasmNote>,
         spend_conditions: Vec<WasmSpendCondition>,
         recipient: WasmDigest,
         gift: Nicks,
-        fee_per_word: Nicks,
         fee_override: Option<Nicks>,
         refund_pkh: WasmDigest,
         include_lock_data: bool,
-    ) -> Result<WasmTxBuilder, JsValue> {
+    ) -> Result<(), JsValue> {
         if notes.len() != spend_conditions.len() {
             return Err(JsValue::from_str(
                 "notes and spend_conditions must have the same length",
@@ -704,28 +805,74 @@ impl WasmTxBuilder {
             .collect();
         let internal_notes = internal_notes.map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
-        let mut builder = TxBuilder::new_simple_base(
-            internal_notes,
-            recipient.to_internal(),
-            gift,
-            fee_per_word,
-            refund_pkh.to_internal(),
-            include_lock_data,
-        )
-        .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
+        self.builder
+            .simple_spend_base(
+                internal_notes,
+                recipient.to_internal(),
+                gift,
+                refund_pkh.to_internal(),
+                include_lock_data,
+            )
+            .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
         if let Some(fee) = fee_override {
-            builder.set_fee_and_balance_refund(fee, include_lock_data)
+            self.builder
+                .set_fee_and_balance_refund(fee, false, include_lock_data)
         } else {
-            builder.subtract_fee_from_refund(include_lock_data)
+            self.builder.recalc_and_set_fee(include_lock_data)
         }
-        .map(|v| v.remove_unused_notes())
         .map_err(|e| JsValue::from_str(&format!("{}", e)))?;
 
-        Ok(Self { builder })
+        Ok(())
     }
 
-    /// Sign the transaction with a private key
+    /// Append a `SpendBuilder` to this transaction
+    pub fn spend(&mut self, spend: WasmSpendBuilder) -> Option<WasmSpendBuilder> {
+        self.builder.spend(spend.into()).map(|v| v.into())
+    }
+
+    /// Distributes `fee` across builder's spends, and balances refunds out
+    ///
+    /// `adjust_fee` parameter allows the fee to be slightly tweaked, whenever notes are added or
+    /// removed to/from the builder's fee note pool. This is because using more or less notes
+    /// impacts the exact fee being required. If the caller estimates fee and sets it, adding more
+    /// notes will change the exact fee needed, and setting this parameter to true will allow one
+    /// to not have to call this function multiple times.
+    #[wasm_bindgen(js_name = setFeeAndBalanceRefund)]
+    pub fn set_fee_and_balance_refund(
+        &mut self,
+        fee: Nicks,
+        adjust_fee: bool,
+        include_lock_data: bool,
+    ) -> Result<(), JsValue> {
+        self.builder
+            .set_fee_and_balance_refund(fee, adjust_fee, include_lock_data)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Recalculate fee and set it, balancing things out with refunds
+    #[wasm_bindgen(js_name = recalcAndSetFee)]
+    pub fn recalc_and_set_fee(&mut self, include_lock_data: bool) -> Result<(), JsValue> {
+        self.builder
+            .recalc_and_set_fee(include_lock_data)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Appends `preimage_jam` to all spend conditions that expect this preimage.
+    #[wasm_bindgen(js_name = addPreimage)]
+    pub fn add_preimage(&mut self, preimage_jam: &[u8]) -> Result<Option<WasmDigest>, JsValue> {
+        let preimage = cue(&preimage_jam).ok_or("Unable to cue preimage jam")?;
+        Ok(self
+            .builder
+            .add_preimage(preimage)
+            .map(|v| WasmDigest::from_internal(&v)))
+    }
+
+    /// Sign the transaction with a private key.
+    ///
+    /// This will sign all spends that are still missing signature from
     #[wasm_bindgen]
     pub fn sign(&mut self, signing_key_bytes: &[u8]) -> Result<(), JsValue> {
         if signing_key_bytes.len() != 32 {
@@ -738,6 +885,7 @@ impl WasmTxBuilder {
         Ok(())
     }
 
+    /// Validate the transaction.
     #[wasm_bindgen]
     pub fn validate(&mut self) -> Result<(), JsValue> {
         self.builder
@@ -747,12 +895,21 @@ impl WasmTxBuilder {
         Ok(())
     }
 
-    #[wasm_bindgen]
+    /// Gets the current fee set on all spends.
+    #[wasm_bindgen(js_name = curFee)]
     pub fn cur_fee(&self) -> Nicks {
         self.builder.cur_fee()
     }
 
-    #[wasm_bindgen]
+    /// Calculates the fee needed for the transaction.
+    ///
+    /// NOTE: if the transaction is unsigned, this function will estimate the fee needed, supposing
+    /// all signatures are added. However, this heuristic is only accurate for one signature. In
+    /// addition, this fee calculation does not estimate the size of missing preimages.
+    ///
+    /// So, first, add missing preimages, and only then calc the fee. If you're building a multisig
+    /// transaction, this value might be incorrect.
+    #[wasm_bindgen(js_name = calcFee)]
     pub fn calc_fee(&self) -> Nicks {
         self.builder.calc_fee()
     }
@@ -761,6 +918,137 @@ impl WasmTxBuilder {
     pub fn build(&self) -> Result<WasmRawTx, JsValue> {
         let tx = self.builder.build();
         Ok(WasmRawTx::from_internal(&tx))
+    }
+}
+
+// ============================================================================
+// Wasm Spend Builder
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmSpendBuilder {
+    builder: SpendBuilder,
+}
+
+#[wasm_bindgen]
+impl WasmSpendBuilder {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        note: WasmNote,
+        spend_condition: WasmSpendCondition,
+        refund_lock: Option<WasmSpendCondition>,
+    ) -> Result<Self, JsValue> {
+        Ok(Self {
+            builder: SpendBuilder::new(
+                note.to_internal()?,
+                spend_condition.to_internal()?,
+                refund_lock.map(|v| v.to_internal()).transpose()?,
+            ),
+        })
+    }
+
+    pub fn fee(&mut self, fee: Nicks) {
+        self.builder.fee(fee);
+    }
+
+    #[wasm_bindgen(js_name = computeRefund)]
+    pub fn compute_refund(&mut self, include_lock_data: bool) {
+        self.builder.compute_refund(include_lock_data);
+    }
+
+    #[wasm_bindgen(js_name = curRefund)]
+    pub fn cur_refund(&self) -> Option<WasmSeed> {
+        self.builder.cur_refund().map(|v| WasmSeed::from(v.clone()))
+    }
+
+    #[wasm_bindgen(js_name = isBalanced)]
+    pub fn is_balanced(&self) -> bool {
+        self.builder.is_balanced()
+    }
+
+    pub fn seed(&mut self, seed: WasmSeed) -> Result<(), JsValue> {
+        self.builder.seed(seed.to_internal()?);
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = invalidateSigs)]
+    pub fn invalidate_sigs(&mut self) {
+        self.builder.invalidate_sigs();
+    }
+
+    #[wasm_bindgen(js_name = missingUnlocks)]
+    pub fn missing_unlocks(&self) -> Result<JsValue, JsValue> {
+        serde_wasm_bindgen::to_value(
+            &self
+                .builder
+                .missing_unlocks()
+                .into_iter()
+                .map(|v| WasmMissingUnlocks::from_internal(&v))
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|e| e.into())
+    }
+
+    #[wasm_bindgen(js_name = addPreimage)]
+    pub fn add_preimage(&mut self, preimage_jam: &[u8]) -> Result<Option<WasmDigest>, JsValue> {
+        let preimage = cue(&preimage_jam).ok_or("Unable to cue preimage jam")?;
+        Ok(self
+            .builder
+            .add_preimage(preimage)
+            .map(|v| WasmDigest::from_internal(&v)))
+    }
+
+    pub fn sign(&mut self, signing_key_bytes: &[u8]) -> Result<bool, JsValue> {
+        if signing_key_bytes.len() != 32 {
+            return Err(JsValue::from_str("Private key must be 32 bytes"));
+        }
+        let signing_key = PrivateKey(UBig::from_be_bytes(signing_key_bytes));
+        Ok(self.builder.sign(&signing_key))
+    }
+}
+
+impl From<SpendBuilder> for WasmSpendBuilder {
+    fn from(builder: SpendBuilder) -> Self {
+        Self { builder }
+    }
+}
+
+impl From<WasmSpendBuilder> for SpendBuilder {
+    fn from(value: WasmSpendBuilder) -> Self {
+        value.builder
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum WasmMissingUnlocks {
+    Pkh {
+        num_sigs: u64,
+        sig_of: BTreeSet<String>,
+    },
+    Hax {
+        preimages_for: BTreeSet<String>,
+    },
+    Brn,
+}
+
+impl WasmMissingUnlocks {
+    fn from_internal(internal: &MissingUnlocks) -> Self {
+        match internal {
+            MissingUnlocks::Pkh { num_sigs, sig_of } => Self::Pkh {
+                num_sigs: *num_sigs,
+                sig_of: sig_of
+                    .into_iter()
+                    .map(|v| WasmDigest::from_internal(v).value)
+                    .collect(),
+            },
+            MissingUnlocks::Hax { preimages_for } => Self::Hax {
+                preimages_for: preimages_for
+                    .into_iter()
+                    .map(|v| WasmDigest::from_internal(v).value)
+                    .collect(),
+            },
+            MissingUnlocks::Brn => Self::Brn,
+        }
     }
 }
 
