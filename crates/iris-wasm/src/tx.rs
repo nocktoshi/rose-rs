@@ -1447,7 +1447,7 @@ impl WasmRawTx {
     /// Convert to jammed transaction file for inspecting through CLI
     #[wasm_bindgen(js_name = toJam)]
     pub fn to_jam(&self) -> js_sys::Uint8Array {
-        let n = (&self.internal.id.to_string(), &self.internal.spends).to_noun();
+        let n = self.internal.to_nockchain_tx();
         js_sys::Uint8Array::from(&jam(n)[..])
     }
 
@@ -1462,5 +1462,15 @@ impl WasmRawTx {
             spends,
         };
         Ok(Self::from_internal(&tx))
+    }
+
+    /// Calculate output notes from the transaction spends.
+    #[wasm_bindgen]
+    pub fn outputs(&self) -> Vec<WasmNote> {
+        self.internal
+            .outputs()
+            .into_iter()
+            .map(WasmNote::from_internal)
+            .collect()
     }
 }

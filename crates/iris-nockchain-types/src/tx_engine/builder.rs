@@ -638,15 +638,18 @@ mod tests {
     use crate::{LockPrimitive, LockTim, Name, NoteData, Pkh, Version};
     use alloc::{string::ToString, vec};
     use bip39::Mnemonic;
-    use iris_crypto::derive_master_key;
+    use iris_crypto::{derive_master_key, PublicKey};
     use iris_ztd::{jam, NounEncode};
+
+    fn keys() -> (PrivateKey, PublicKey) {
+        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
+        let ek = derive_master_key(&mnemonic.to_seed(""));
+        (ek.private_key.unwrap(), ek.public_key)
+    }
 
     #[test]
     fn test_builder() {
-        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
-        let private_key = derive_master_key(&mnemonic.to_seed(""))
-            .private_key
-            .unwrap();
+        let (private_key, _) = keys();
 
         let note = Note {
             version: Version::V1,
@@ -735,10 +738,7 @@ mod tests {
 
     #[test]
     fn test_fee_calcs_up() {
-        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
-        let private_key = derive_master_key(&mnemonic.to_seed(""))
-            .private_key
-            .unwrap();
+        let (private_key, _) = keys();
 
         let notes = [
             Note {
@@ -842,8 +842,7 @@ mod tests {
 
     #[test]
     fn test_first_name() {
-        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
-        let public_key = derive_master_key(&mnemonic.to_seed("")).public_key;
+        let (_, public_key) = keys();
 
         let sc = SpendCondition(vec![
             LockPrimitive::Pkh(Pkh::single(public_key.hash())),
@@ -856,11 +855,125 @@ mod tests {
     }
 
     #[test]
-    fn test_jam_vector() {
-        let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
-        let private_key = derive_master_key(&mnemonic.to_seed(""))
-            .private_key
+    fn test_multiseed_outputs() {
+        let (private_key, public_key) = keys();
+        let notes = [
+            Note {
+                version: Version::V1,
+                origin_page: 13,
+                name: Name::new(
+                    "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH"
+                        .try_into()
+                        .unwrap(),
+                    "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvM"
+                        .try_into()
+                        .unwrap(),
+                ),
+                note_data: NoteData::empty(),
+                assets: 4294967296,
+            },
+            Note {
+                version: Version::V1,
+                origin_page: 14,
+                name: Name::new(
+                    "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH"
+                        .try_into()
+                        .unwrap(),
+                    "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvA"
+                        .try_into()
+                        .unwrap(),
+                ),
+                note_data: NoteData::empty(),
+                assets: 4294967296,
+            },
+            Note {
+                version: Version::V1,
+                origin_page: 15,
+                name: Name::new(
+                    "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH"
+                        .try_into()
+                        .unwrap(),
+                    "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvD"
+                        .try_into()
+                        .unwrap(),
+                ),
+                note_data: NoteData::empty(),
+                assets: 4294967296,
+            },
+        ];
+
+        let recipient = "2nEFkqYm51yfqsYgfRx72w8FF9bmWqnkJu8XqY8T7psXufjYNRxf5ME"
+            .try_into()
             .unwrap();
+        let gift = 4294967296 * 3 - 65536 * 100;
+        let refund_pkh = public_key.hash();
+
+        let tx = TxBuilder::new(1 << 15)
+            .simple_spend_base(
+                notes
+                    .into_iter()
+                    .map(|note| {
+                        (
+                            note,
+                            SpendCondition(vec![
+                                LockPrimitive::Pkh(Pkh::single(public_key.hash())),
+                                LockPrimitive::Tim(LockTim::coinbase()),
+                            ]),
+                        )
+                    })
+                    .collect(),
+                recipient,
+                gift,
+                refund_pkh,
+                false,
+            )
+            .unwrap()
+            .recalc_and_set_fee(false)
+            .unwrap()
+            .sign(&private_key)
+            .validate()
+            .unwrap()
+            .build();
+
+        assert_eq!(
+            tx.id.to_string(),
+            "3s1BvrUAjgJds563tKx7BckuadveJfSoUQBhzLDcVYizLtYq9HJ8jJ9",
+        );
+
+        let mut jam_vec = jam(tx.to_nockchain_tx());
+        jam_vec.reverse();
+        assert_eq!(
+            bs58::encode(jam_vec).into_string(),
+            "3wKbrudLbFDNAdjeidih9YjZwFE6RsWcmnpjYQLsgVLuigKeUeQKmRLd3a8gUSPsGmCyJaqUvp4KGYyKxYZH2aeVuH154HtUcvH8jjFQXshNSr58ecaoW2iornWGR4yWt7gbVUiktgeu72PkTM5iA3HFJry41T84WM1aLrxYjjB5Q9bu7eDtcPfAT1cbWex46a9ceVPiYhWdr4hTXcdfNvHG74cr5tnxegQ2fs66AG2Vb3zTDsdLzTfTvLsSaPYYv3mx6PhiTXhUYu2AWsstGg6ZhWv6J8gJgZeacatqTGM59emcDwiXVXjqZPA3JxVeC7bFnX5K488eTdNEXVCwFym5hsv2QyxVe7Uy95eAfvXGD5e7XSEHV7effUi5CNwHHvpwksoqYhep3uMLWEkUJG5reZseuQkGVjGpfTUAiCKRVfmaKgvs14kxawaK7XAx4eYGpGkMxfSEhbXTaQwuyHYLFhzd5WGjq1js3MDwGL21PFY67quBASh5DtmTryoSgTSuhjkHLS3yogeDrzE3dMEb1BXHX6wTRnPN7q1qUTNrGzRu8G3LJpXSQYDUG2uD3DJvN95977uuLvyLjHAA7HEn57wijmzocygxtwL4iMEEnKpiuksm4V39RcyKfg2f7QbekXR7vfiwkSD6o4Vrog7tDkYfhiz7tGSwApGMgmuhN6TRhVKamz8x5i4cCEs5yYN19fSE7tsafb1E3ZyAAmpbmoULdVMTkEUPkmB6BWc78NHTrVs4iCf8RzaH9AhC219N9mDKwq2YczdUgVrhoYS2VLuRdS3WZJ3BxGNyiBpoVz8GHdD8SnwSa6Jkx4ykzm7x8wStcQYosaWBKNmrVgj9kkV4AYoUN5SZT6PAc2frJaFQgmqFTdWNRdfA7yvz1K8XETwtoxDb3FPYQGrVXAAGrL1Qf7USDf8crQAXmTho3tLqL5cn1g7puUicHDiBUoXnsjwLk4vAFvb5v6S1N7agUoZFtDFvLGPCmB4RbLSsyXRo8R26hZ9H7fJ8dubuJ42SMED7whzNrwCt1VkeDhj5AnNvpUsEc2h9NY5aama44QS1rn7uXFGFyAYLV37sBwica4CqACLYx4hjYucfL331EtUHSTxi5DKHBWTLyxonH6M4RqoPFETs57WRyRXknh6VJDakxWSGdVYQHtoaCWZAqmd61Xv9W4UXKToTGKwegHrPLbsQ8P8CqFKrCdyVni4A31RdPgx2JgvSASb79ExvRE7NdZX3vBUsDZiknWLfm5TUyVYwzHKSXJ2KHfBoyqC5ptzb5hwXc5WAZtgd1n7oUr8Wb2pnt4Nanak29DTMpqWhvFK3j2m4sLQRoJmDemAvwdE1NTpcoQM1X32t1EcXShhjn5xjCv2vU4w374zrB73wopPzEzR2WYpkJtuN",
+        );
+
+        let outputs = tx.outputs();
+        let names = outputs
+            .iter()
+            .map(|output| (output.name.first.to_string(), output.name.last.to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(outputs[0].assets, 425984);
+        assert_eq!(outputs[1].assets, 12878348288);
+        assert_eq!(
+            names[0],
+            (
+                "3k18JRFPMXUEnXJq9XRNrfX4Hz89YBY7RcxVzM3UQnUJQXAvbZ8Gwz4".to_string(),
+                "6CpT2CXH2PuYzy5F17gbWWTSbPkZqBJmk8QhDtdbGvggucgWkA5HCiW".to_string()
+            )
+        );
+        assert_eq!(
+            names[1],
+            (
+                "CB1qjzHgZXRjV2827BffsuSeJV1WFbSfcpD48oBkWL7QKeBrq7ZrJvJ".to_string(),
+                "97ieQ5D2FafHMx6L29f9EvY1aKdmb4Z27TfXA6MtViCncjizMVzTZ7d".to_string()
+            )
+        );
+        // TODO: test note-data order
+    }
+
+    #[test]
+    fn test_jam_vector() {
+        let (private_key, _) = keys();
         let note = Note {
             version: Version::V1,
             origin_page: 13,

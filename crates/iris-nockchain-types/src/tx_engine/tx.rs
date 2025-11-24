@@ -1,11 +1,12 @@
-use alloc::string::String;
+use alloc::collections::BTreeMap;
+use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use iris_crypto::{PublicKey, Signature};
 use iris_ztd::{Digest, Hashable as HashableTrait, Noun, NounDecode, NounEncode, ZMap, ZSet};
 use iris_ztd_derive::{Hashable, NounDecode, NounEncode};
 
-use super::note::{Name, NoteData, Source, TimelockRange, Version};
+use super::note::{Name, Note, NoteData, Source, TimelockRange, Version};
 use crate::{Nicks, Pkh};
 
 fn noun_words(n: &Noun) -> u64 {
@@ -432,6 +433,72 @@ impl RawTx {
             id,
             spends,
         }
+    }
+
+    /// Calculate output notes from the transaction spends.
+    ///
+    /// This function combines seeds across multiple spends into one output note per-lock-root.
+    pub fn outputs(&self) -> Vec<Note> {
+        // We must convert to ZMap to preserve the order of the spends.
+        let spends = ZMap::from_iter(self.spends.0.iter().cloned());
+
+        let mut seeds_by_lock: BTreeMap<Digest, ZSet<Seed>> = BTreeMap::new();
+        for (_, spend) in spends {
+            for seed in spend.seeds.0.iter() {
+                seeds_by_lock
+                    .entry(seed.lock_root.clone())
+                    .or_insert_with(ZSet::new)
+                    .insert(seed.clone());
+            }
+        }
+
+        let mut outputs: Vec<Note> = Vec::new();
+
+        for (lock_root, seeds) in seeds_by_lock {
+            let seeds: Vec<Seed> = seeds.into_iter().collect();
+
+            if seeds.is_empty() {
+                continue;
+            }
+
+            let total_assets: Nicks = seeds.iter().map(|s| s.gift).sum();
+
+            // Hoon code ends up taking the last note-data for the output note, by the tap order of z-set.
+            let note_data = seeds[seeds.len() - 1].note_data.clone();
+
+            let mut normalized_seeds_set: ZSet<Seed> = ZSet::new();
+            for seed in seeds {
+                let mut normalized_seed = seed.clone();
+                normalized_seed.output_source = None;
+                normalized_seeds_set.insert(normalized_seed);
+            }
+
+            let src_hash = normalized_seeds_set.hash();
+
+            let src = Source {
+                hash: src_hash,
+                is_coinbase: false,
+            };
+
+            let name = Name::new_v1(lock_root, src);
+
+            let note = Note::new(
+                Version::V1,
+                // As opposed to `None`.
+                0,
+                name,
+                note_data,
+                total_assets,
+            );
+
+            outputs.push(note);
+        }
+
+        outputs
+    }
+
+    pub fn to_nockchain_tx(&self) -> Noun {
+        (&self.id.to_string(), &self.spends).to_noun()
     }
 }
 

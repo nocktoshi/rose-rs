@@ -246,6 +246,12 @@ impl Name {
             _sig: 0,
         }
     }
+
+    pub fn new_v1(lock: Digest, source: Source) -> Self {
+        let first = (true, lock).hash();
+        let last = (true, source.hash(), 0).hash();
+        Self::new(first, last)
+    }
 }
 
 #[derive(Debug, Clone, Hashable, NounEncode, NounDecode)]
