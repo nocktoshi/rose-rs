@@ -601,6 +601,107 @@ dependencies = [
 ]
 
 [[package]]
+name = "iris-crypto"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "bip39",
+ "bs58",
+ "hmac",
+ "ibig",
+ "iris-ztd",
+ "iris-ztd-derive",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "iris-grpc-proto"
+version = "0.1.0"
+dependencies = [
+ "bip39",
+ "glob",
+ "iris-crypto",
+ "iris-nockchain-types",
+ "iris-ztd",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "serde",
+ "thiserror 2.0.17",
+ "tokio",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "iris-nockchain-types"
+version = "0.1.0"
+dependencies = [
+ "bip39",
+ "bs58",
+ "ibig",
+ "iris-crypto",
+ "iris-ztd",
+ "iris-ztd-derive",
+ "serde",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "iris-wallet"
+version = "0.1.0"
+dependencies = [
+ "bs58",
+ "ibig",
+ "iris-crypto",
+ "iris-nockchain-types",
+ "iris-ztd",
+]
+
+[[package]]
+name = "iris-wasm"
+version = "0.1.0"
+dependencies = [
+ "bip39",
+ "getrandom 0.2.16",
+ "ibig",
+ "iris-crypto",
+ "iris-grpc-proto",
+ "iris-nockchain-types",
+ "iris-ztd",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "tonic-web-wasm-client",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "iris-ztd"
+version = "0.1.0"
+dependencies = [
+ "arrayref",
+ "bitvec",
+ "bs58",
+ "ibig",
+ "num-traits",
+ "once_cell",
+ "serde",
+]
+
+[[package]]
+name = "iris-ztd-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -677,107 +778,6 @@ name = "multimap"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
-
-[[package]]
-name = "nbx-crypto"
-version = "0.1.0"
-dependencies = [
- "argon2",
- "bip39",
- "bs58",
- "hmac",
- "ibig",
- "nbx-ztd",
- "nbx-ztd-derive",
- "serde",
- "sha2",
-]
-
-[[package]]
-name = "nbx-grpc-proto"
-version = "0.1.0"
-dependencies = [
- "bip39",
- "glob",
- "nbx-crypto",
- "nbx-nockchain-types",
- "nbx-ztd",
- "prost",
- "prost-build",
- "prost-types",
- "serde",
- "thiserror 2.0.17",
- "tokio",
- "tonic",
- "tonic-build",
-]
-
-[[package]]
-name = "nbx-nockchain-types"
-version = "0.1.0"
-dependencies = [
- "bip39",
- "bs58",
- "ibig",
- "nbx-crypto",
- "nbx-ztd",
- "nbx-ztd-derive",
- "serde",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "nbx-wallet"
-version = "0.1.0"
-dependencies = [
- "bs58",
- "ibig",
- "nbx-crypto",
- "nbx-nockchain-types",
- "nbx-ztd",
-]
-
-[[package]]
-name = "nbx-wasm"
-version = "0.1.0"
-dependencies = [
- "bip39",
- "getrandom 0.2.16",
- "ibig",
- "js-sys",
- "nbx-crypto",
- "nbx-grpc-proto",
- "nbx-nockchain-types",
- "nbx-ztd",
- "serde",
- "serde-wasm-bindgen",
- "tonic-web-wasm-client",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "nbx-ztd"
-version = "0.1.0"
-dependencies = [
- "arrayref",
- "bitvec",
- "bs58",
- "ibig",
- "num-traits",
- "once_cell",
- "serde",
-]
-
-[[package]]
-name = "nbx-ztd-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "num-traits"

@@ -1,11 +1,11 @@
 [workspace]
 members = [
-  "crates/nbx-wallet",
-  "crates/nbx-ztd",
-  "crates/nbx-crypto",
-  "crates/nbx-nockchain-types",
-  "crates/nbx-grpc-proto",
-  "crates/nbx-wasm",
+  "crates/iris-wallet",
+  "crates/iris-ztd",
+  "crates/iris-crypto",
+  "crates/iris-nockchain-types",
+  "crates/iris-grpc-proto",
+  "crates/iris-wasm",
 ]
 
 resolver = "2"
@@ -14,21 +14,21 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 
-[workspace.dependencies.nbx-wallet]
-path = "crates/nbx-wallet"
+[workspace.dependencies.iris-wallet]
+path = "crates/iris-wallet"
 
-[workspace.dependencies.nbx-ztd]
-path = "crates/nbx-ztd"
+[workspace.dependencies.iris-ztd]
+path = "crates/iris-ztd"
 
-[workspace.dependencies.nbx-crypto]
-path = "crates/nbx-crypto"
+[workspace.dependencies.iris-crypto]
+path = "crates/iris-crypto"
 
 
-[workspace.dependencies.nbx-nockchain-types]
-path = "crates/nbx-nockchain-types"
+[workspace.dependencies.iris-nockchain-types]
+path = "crates/iris-nockchain-types"
 
-[workspace.dependencies.nbx-wasm]
-path = "crates/nbx-wasm"
+[workspace.dependencies.iris-wasm]
+path = "crates/iris-wasm"
 
 [workspace.dependencies]
 nockvm = { git = "https://github.com/zorp-corp/nockchain.git" }
