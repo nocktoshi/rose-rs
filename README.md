@@ -34,7 +34,7 @@ The project is split into several crates:
 | [iris-grpc-proto](crates/iris-grpc-proto) | gRPC protobuf definitions | Beta |
 | [iris-nockchain-types](crates/iris-nockchain-types) | Core Nockchain types | Beta |
 | [iris-wasm](crates/iris-wasm) | WASM bindings for web | Beta |
-| [iris-ztd](crates/iris-ztd) | Base Zero-knowledge data structures | Beta |
+| [iris-ztd](crates/iris-ztd) | Base Zero-knowledge data structures and noun-lib | Beta |
 | [iris-ztd-derive](crates/iris-ztd-derive) | Derive macros for iris-ztd | Beta |
 
 ## no_std Support

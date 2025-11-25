@@ -151,11 +151,19 @@ pub fn hash_public_key(public_key_bytes: &[u8]) -> Result<String, JsValue> {
 
 /// Hash a u64 value
 #[wasm_bindgen(js_name = hashU64)]
-pub fn hash_u64(value: f64) -> String {
+pub fn hash_u64(value: u64) -> String {
     use iris_ztd::Hashable;
-    let value = value as u64;
     let digest = value.hash();
     digest.to_string()
+}
+
+/// Hash a noun (jam as input)
+#[wasm_bindgen(js_name = hashNoun)]
+pub fn hash_noun(noun: &[u8]) -> Result<String, JsValue> {
+    use iris_ztd::{cue, Hashable};
+    let noun = cue(noun).ok_or("Unable to cue noun")?;
+    let digest = noun.hash();
+    Ok(digest.to_string())
 }
 
 /// Sign a message string with a private key
