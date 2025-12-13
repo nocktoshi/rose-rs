@@ -1,5 +1,5 @@
 use iris_nockchain_types::*;
-use iris_ztd::{cue, jam, Belt, Digest};
+use iris_ztd::{jam, Belt, Digest, Noun};
 
 use crate::common::{ConversionError, Required};
 use crate::pb::common::v1::{
