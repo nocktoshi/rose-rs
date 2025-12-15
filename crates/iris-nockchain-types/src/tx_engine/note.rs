@@ -105,7 +105,7 @@ impl NoteData {
         ret
     }
 
-    pub fn set_memo(&mut self, memo: Noun) {
+    pub fn push_memo(&mut self, memo: Noun) {
         self.entries.push(NoteDataEntry {
             key: MEMO_KEY.to_string(),
             val: memo.clone(),
