@@ -177,13 +177,6 @@ impl NoteData {
     pub fn push_memo_utf8(&mut self, memo: &str) {
         self.push_memo_bytes(MemoBytes::from_utf8(memo));
     }
-
-    pub fn memo_bytes(&self) -> Option<MemoBytes> {
-        self.entries
-            .iter()
-            .find(|e| e.key == MEMO_KEY)
-            .and_then(|e| MemoBytes::from_noun(&e.val))
-    }
 }
 
 impl NounEncode for NoteData {
