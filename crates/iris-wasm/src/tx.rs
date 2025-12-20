@@ -14,30 +14,15 @@ use iris_nockchain_types::{
     Nicks,
 };
 use iris_nockchain_types::{Hax, LockTim, MissingUnlocks, Source, SpendBuilder};
-use iris_ztd::{cue, jam, Digest, Hashable as HashableTrait, Noun, NounDecode, NounEncode};
-use js_sys::Uint8Array;
+use iris_ztd::{cue, jam, Digest, Hashable as HashableTrait, NounDecode, NounEncode};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+
+use crate::memo::memo_from_js;
 
 // ============================================================================
 // Wasm Types - Core Types
 // ============================================================================
-
-fn memo_from_js(value: Option<JsValue>) -> Result<Option<Noun>, JsValue> {
-    let Some(v) = value else {
-        return Ok(None);
-    };
-    if v.is_undefined() || v.is_null() {
-        return Ok(None);
-    }
-    if let Some(s) = v.as_string() {
-        return Ok(Some(s.to_noun()));
-    }
-    // Treat non-string as jammed noun bytes (Uint8Array or ArrayBuffer)
-    let bytes = Uint8Array::new(&v).to_vec();
-    let memo = cue(&bytes).ok_or_else(|| JsValue::from_str("Failed to deserialize memo"))?;
-    Ok(Some(memo))
-}
 
 #[wasm_bindgen(js_name = Digest)]
 #[derive(Clone, Serialize, Deserialize)]
@@ -1116,14 +1101,6 @@ impl WasmTxBuilder {
     /// `include_lock_data` can be used to include `%lock` key in note-data, with the
     /// `SpendCondition` used. However, note-data costs 1 << 15 nicks, which means, it can get
     /// expensive.
-    ///
-    /// Optional parameter `remove_unused_notes`, if set to false, will keep the notes in the
-    /// transaction builder. This is meant to be used whenever additional operations are performed
-    /// on the builder, such as additional spends, or `addPreimage` calls. All of these increase
-    /// the required fee (which can be checked with `calcFee`), and unused notes can then be used
-    /// to adjust fees with `setFeeAndBalanceRefund` or `recalcAndSetFee`. Once all operations are
-    /// done, one should call `removeUnusedNotes` to ensure these notes are not used within the
-    /// transaction.
     #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = simpleSpend)]
     pub fn simple_spend(
