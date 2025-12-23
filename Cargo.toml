@@ -19,7 +19,6 @@ path = "crates/rose-ztd"
 [workspace.dependencies.rose-crypto]
 path = "crates/rose-crypto"
 
-
 [workspace.dependencies.rose-nockchain-types]
 path = "crates/rose-nockchain-types"
 
