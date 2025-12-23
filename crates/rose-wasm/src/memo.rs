@@ -1,6 +1,6 @@
+use js_sys::{Array, ArrayBuffer, Uint8Array};
 use rose_nockchain_types::note::MemoBytes;
 use rose_ztd::{cue, Noun, NounEncode};
-use js_sys::{Array, ArrayBuffer, Uint8Array};
 use wasm_bindgen::prelude::*;
 
 fn noun_atoms_fit_u64(noun: &Noun) -> bool {

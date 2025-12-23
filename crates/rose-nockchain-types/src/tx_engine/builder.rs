@@ -112,7 +112,7 @@ impl SpendBuilder {
             self.invalidate_sigs();
             let rl = self.refund_lock.clone().unwrap();
             let lock_root = LockRoot::Lock(rl.clone());
-            
+
             // If the previous refund seed had memo note-data, preserve it across refund
             // recomputation (fee changes rebuild the refund seed).
             let preserved_memo: Option<Noun> = self
