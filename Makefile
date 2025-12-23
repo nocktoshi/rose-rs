@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 export RUST_BACKTRACE ?= full
 export RUST_LOG ?= info,rose=info
 export MINIMAL_LOG_FORMAT ?= true
