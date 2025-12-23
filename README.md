@@ -1,13 +1,6 @@
 # Rose
 
-[![Build and test]][workflows] [![Rustc 1.85]][rust] [![MIT licensed]][license]
-
-[Build and test]: https://github.com/nocktoshi/rose-rs/actions/workflows/test.yml/badge.svg
-[workflows]: https://github.com/nocktoshi/rose-rs/actions/workflows/test.yml
-[MIT licensed]: https://img.shields.io/badge/license-MIT-blue.svg
-[license]: LICENSE
-[Rustc 1.85]: https://img.shields.io/badge/rustc-1.85+-lightgray.svg
-[rust]: https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/
+[![CI](https://github.com/nocktoshi/rose-rs/actions/workflows/test.yml/badge.svg)](https://github.com/nocktoshi/rose-rs/actions/workflows/test.yml) [![Rustc 1.85+](https://img.shields.io/badge/rustc-1.85+-lightgray.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/) [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > [!WARNING]
 > **This software is unaudited and provided with no security or privacy guarantees.**
@@ -17,8 +10,6 @@
 
 Rose provides a comprehensive set of Rust libraries for building lightweight wallets for the Nockchain network. It includes cryptographic primitives, data structures, and WASM bindings for web integration.
 
-> [!NOTE]
-> This library does not support V0 addresses.
 
 ## gRPC Support
 
