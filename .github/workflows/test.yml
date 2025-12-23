@@ -36,4 +36,4 @@ jobs:
           sudo apt-get install -y protobuf-compiler
 
       - name: Run tests
-        run: cargo test --all
+        run: make test

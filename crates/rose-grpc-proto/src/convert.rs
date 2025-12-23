@@ -4,23 +4,24 @@ use rose_ztd::{jam, Belt, Digest, Noun};
 use crate::common::{ConversionError, Required};
 use crate::pb::common::v1::{
     BlockHeight as PbBlockHeight, Hash as PbHash, Name as PbName, Nicks as PbNicks,
-    NoteVersion as PbNoteVersion, Source as PbSource,
-    SchnorrSignature as PbSchnorrSignature, Signature as PbLegacySignature,
-    SignatureEntry as PbSignatureEntry,
+    NoteVersion as PbNoteVersion, SchnorrSignature as PbSchnorrSignature,
+    Signature as PbLegacySignature, SignatureEntry as PbSignatureEntry, Source as PbSource,
     TimeLockRangeAbsolute as PbTimeLockRangeAbsolute,
     TimeLockRangeRelative as PbTimeLockRangeRelative,
 };
-use crate::pb::common::v1::{Lock as PbLegacyLock, Note as PbLegacyNote, SchnorrPubkey as PbSchnorrPubkey, TimeLockIntent as PbTimeLockIntent};
+use crate::pb::common::v1::{
+    Lock as PbLegacyLock, Note as PbLegacyNote, SchnorrPubkey as PbSchnorrPubkey,
+    TimeLockIntent as PbTimeLockIntent,
+};
 use crate::pb::common::v2::{
     lock_primitive, spend, Balance as PbBalance, BalanceEntry as PbBalanceEntry,
     BurnLock as PbBurnLock, HaxLock as PbHaxLock, HaxPreimage as PbHaxPreimage,
-    LegacySpend as PbLegacySpend,
-    LockMerkleProof as PbLockMerkleProof, LockPrimitive as PbLockPrimitive, LockTim as PbLockTim,
-    MerkleProof as PbMerkleProof, Note as PbNote, NoteData as PbNoteData,
-    NoteDataEntry as PbNoteDataEntry, NoteV1 as PbNoteV1, PkhLock as PbPkhLock,
-    PkhSignature as PbPkhSignature, RawTransaction as PbRawTransaction, Seed as PbSeed,
-    Spend as PbSpend, SpendCondition as PbSpendCondition, SpendEntry as PbSpendEntry,
-    Witness as PbWitness, WitnessSpend as PbWitnessSpend,
+    LegacySpend as PbLegacySpend, LockMerkleProof as PbLockMerkleProof,
+    LockPrimitive as PbLockPrimitive, LockTim as PbLockTim, MerkleProof as PbMerkleProof,
+    Note as PbNote, NoteData as PbNoteData, NoteDataEntry as PbNoteDataEntry, NoteV1 as PbNoteV1,
+    PkhLock as PbPkhLock, PkhSignature as PbPkhSignature, RawTransaction as PbRawTransaction,
+    Seed as PbSeed, Spend as PbSpend, SpendCondition as PbSpendCondition,
+    SpendEntry as PbSpendEntry, Witness as PbWitness, WitnessSpend as PbWitnessSpend,
 };
 
 // =========================
@@ -569,35 +570,21 @@ fn schnorr_sig_to_pb(sig: rose_crypto::Signature) -> PbSchnorrSignature {
             belt_8: Some(crate::pb::common::v1::Belt { value: chal[7] }),
         }),
         sig: Some(crate::pb::common::v1::EightBelt {
-            belt_1: Some(crate::pb::common::v1::Belt {
-                value: sig_val[0],
-            }),
-            belt_2: Some(crate::pb::common::v1::Belt {
-                value: sig_val[1],
-            }),
-            belt_3: Some(crate::pb::common::v1::Belt {
-                value: sig_val[2],
-            }),
-            belt_4: Some(crate::pb::common::v1::Belt {
-                value: sig_val[3],
-            }),
-            belt_5: Some(crate::pb::common::v1::Belt {
-                value: sig_val[4],
-            }),
-            belt_6: Some(crate::pb::common::v1::Belt {
-                value: sig_val[5],
-            }),
-            belt_7: Some(crate::pb::common::v1::Belt {
-                value: sig_val[6],
-            }),
-            belt_8: Some(crate::pb::common::v1::Belt {
-                value: sig_val[7],
-            }),
+            belt_1: Some(crate::pb::common::v1::Belt { value: sig_val[0] }),
+            belt_2: Some(crate::pb::common::v1::Belt { value: sig_val[1] }),
+            belt_3: Some(crate::pb::common::v1::Belt { value: sig_val[2] }),
+            belt_4: Some(crate::pb::common::v1::Belt { value: sig_val[3] }),
+            belt_5: Some(crate::pb::common::v1::Belt { value: sig_val[4] }),
+            belt_6: Some(crate::pb::common::v1::Belt { value: sig_val[5] }),
+            belt_7: Some(crate::pb::common::v1::Belt { value: sig_val[6] }),
+            belt_8: Some(crate::pb::common::v1::Belt { value: sig_val[7] }),
         }),
     }
 }
 
-fn pb_schnorr_pubkey_to_public_key(pb: PbSchnorrPubkey) -> Result<rose_crypto::PublicKey, ConversionError> {
+fn pb_schnorr_pubkey_to_public_key(
+    pb: PbSchnorrPubkey,
+) -> Result<rose_crypto::PublicKey, ConversionError> {
     use rose_ztd::crypto::cheetah::{CheetahPoint, F6lt};
     use rose_ztd::Belt as ZBelt;
 
@@ -626,7 +613,9 @@ fn pb_schnorr_pubkey_to_public_key(pb: PbSchnorrPubkey) -> Result<rose_crypto::P
     }))
 }
 
-fn pb_schnorr_sig_to_sig(pb: PbSchnorrSignature) -> Result<rose_crypto::Signature, ConversionError> {
+fn pb_schnorr_sig_to_sig(
+    pb: PbSchnorrSignature,
+) -> Result<rose_crypto::Signature, ConversionError> {
     use ibig::UBig;
     use rose_ztd::Belt as ZBelt;
 
@@ -687,11 +676,11 @@ impl TryFrom<PbLegacySignature> for LegacySignature {
             .into_iter()
             .map(|e| {
                 let pubkey = pb_schnorr_pubkey_to_public_key(
-                    e.schnorr_pubkey.required("SignatureEntry", "schnorr_pubkey")?,
+                    e.schnorr_pubkey
+                        .required("SignatureEntry", "schnorr_pubkey")?,
                 )?;
-                let sig = pb_schnorr_sig_to_sig(
-                    e.signature.required("SignatureEntry", "signature")?,
-                )?;
+                let sig =
+                    pb_schnorr_sig_to_sig(e.signature.required("SignatureEntry", "signature")?)?;
                 Ok((pubkey, sig))
             })
             .collect::<Result<Vec<_>, ConversionError>>()?;
@@ -900,8 +889,14 @@ impl TryFrom<PbNote> for Note {
                             abs: TimelockRange::none(),
                         }),
                         time_lock_intent::Value::AbsoluteAndRelative(ar) => Some(LockTim {
-                            rel: ar.relative.map(Into::into).unwrap_or_else(TimelockRange::none),
-                            abs: ar.absolute.map(Into::into).unwrap_or_else(TimelockRange::none),
+                            rel: ar
+                                .relative
+                                .map(Into::into)
+                                .unwrap_or_else(TimelockRange::none),
+                            abs: ar
+                                .absolute
+                                .map(Into::into)
+                                .unwrap_or_else(TimelockRange::none),
                         }),
                     }
                 }
@@ -916,7 +911,8 @@ impl TryFrom<PbNote> for Note {
                     version,
                 } = legacy;
 
-                let origin_page: BlockHeight = origin_page.required("LegacyNote", "origin_page")?.into();
+                let origin_page: BlockHeight =
+                    origin_page.required("LegacyNote", "origin_page")?.into();
                 let name: Name = name.required("LegacyNote", "name")?.try_into()?;
                 let assets: Nicks = assets.required("LegacyNote", "assets")?.into();
                 let version: Version = version.required("LegacyNote", "version")?.into();

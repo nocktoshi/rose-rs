@@ -162,14 +162,8 @@ impl NounDecode for Seeds {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LegacySignature(pub Vec<(PublicKey, Signature)>);
-
-impl Default for LegacySignature {
-    fn default() -> Self {
-        Self(Vec::new())
-    }
-}
 
 impl HashableTrait for LegacySignature {
     fn hash(&self) -> Digest {
@@ -261,7 +255,11 @@ impl NounDecode for Spend {
             }
             Version::V1 => {
                 let witness: Witness = NounDecode::from_noun(&a)?;
-                Some(Spend::Witness(WitnessSpend { witness, seeds, fee }))
+                Some(Spend::Witness(WitnessSpend {
+                    witness,
+                    seeds,
+                    fee,
+                }))
             }
             _ => None,
         }
@@ -316,7 +314,11 @@ impl Spend {
     }
 
     pub fn new_witness(witness: Witness, seeds: Seeds, fee: Nicks) -> Self {
-        Spend::Witness(WitnessSpend { witness, seeds, fee })
+        Spend::Witness(WitnessSpend {
+            witness,
+            seeds,
+            fee,
+        })
     }
 
     pub fn fee(&self) -> Nicks {
@@ -360,10 +362,7 @@ impl Spend {
                 s.signature.add_entry(key, signature);
             }
             Spend::Witness(s) => {
-                s.witness
-                    .pkh_signature
-                    .0
-                    .push((key.hash(), key, signature));
+                s.witness.pkh_signature.0.push((key.hash(), key, signature));
             }
         }
     }
@@ -701,11 +700,7 @@ pub struct RawTx {
 impl RawTx {
     pub fn new(spends: Spends) -> Self {
         // If any spend is legacy, consider this a legacy transaction.
-        let version = if spends
-            .0
-            .iter()
-            .any(|(_, s)| matches!(s, Spend::Legacy(_)))
-        {
+        let version = if spends.0.iter().any(|(_, s)| matches!(s, Spend::Legacy(_))) {
             Version::V0
         } else {
             Version::V1

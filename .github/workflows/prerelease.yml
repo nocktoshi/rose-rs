@@ -53,40 +53,30 @@ jobs:
           print("set workspace version to", new_ver)
           PY
       - name: Publish crates to crates.io (prerelease)
-        if: "${{ secrets.CARGO_REGISTRY_TOKEN != '' }}"
+        if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          set -euo pipefail
-          # prereleases must be unique; this publishes in dependency order
-          cargo publish -p rose-ztd-derive --allow-dirty
-          cargo publish -p rose-ztd --allow-dirty
-          cargo publish -p rose-crypto --allow-dirty
-          cargo publish -p rose-nockchain-types --allow-dirty
-          cargo publish -p rose-grpc-proto --allow-dirty
-          cargo publish -p rose-wasm --allow-dirty
+        run: make publish-crates-prerelease
 
       - name: Setup Node.js (npm)
-        if: "${{ secrets.NPM_TOKEN != '' }}"
+        if: ${{ secrets.NPM_TOKEN != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install wasm-pack
-        if: "${{ secrets.NPM_TOKEN != '' }}"
+        if: ${{ secrets.NPM_TOKEN != '' }}
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM package for npm (prerelease)
-        if: "${{ secrets.NPM_TOKEN != '' }}"
-        working-directory: crates/rose-wasm
-        run: wasm-pack build --target web --out-dir pkg --scope nockchain
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        run: make wasm
 
       - name: "Publish to npmjs (dist-tag: nightly)"
-        if: "${{ secrets.NPM_TOKEN != '' }}"
-        working-directory: crates/rose-wasm/pkg
+        if: ${{ secrets.NPM_TOKEN != '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --tag nightly
+        run: make npm-publish-nightly
 
 

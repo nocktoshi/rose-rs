@@ -34,8 +34,7 @@ jobs:
         sudo apt-get install -y protobuf-compiler
 
     - name: Build WASM
-      working-directory: crates/rose-wasm
-      run: wasm-pack build --target web --out-dir pkg --scope nockchain
+      run: make wasm
 
     - name: Set nightly/build version (non-main branches)
       if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
@@ -55,5 +54,4 @@ jobs:
         NODE
 
     - name: Validate npm package
-      working-directory: crates/rose-wasm/pkg
-      run: npm pack --dry-run
+      run: make npm-pack

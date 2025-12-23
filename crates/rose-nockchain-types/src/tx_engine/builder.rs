@@ -54,7 +54,11 @@ impl SpendBuilder {
         let spend = if note.version == Version::V0 {
             Spend::new_legacy(Seeds(Default::default()), 0)
         } else {
-            Spend::new_witness(Witness::new(spend_condition.clone()), Seeds(Default::default()), 0)
+            Spend::new_witness(
+                Witness::new(spend_condition.clone()),
+                Seeds(Default::default()),
+                0,
+            )
         };
         Self {
             note,
@@ -70,8 +74,15 @@ impl SpendBuilder {
         spend_condition: SpendCondition,
         refund_lock: Option<SpendCondition>,
     ) -> Option<Self> {
-        // Only witness spends can be validated against a merkle proof.
-        if note.version != Version::V0 {
+        // Enforce spend format matches note version:
+        // - V0 notes must use legacy spends
+        // - V1+ notes must use witness spends (validated against a merkle proof)
+        if note.version == Version::V0 {
+            if !matches!(&spend, Spend::Legacy(_)) {
+                return None;
+            }
+        } else {
+            // Only witness spends can be validated against a merkle proof.
             let Spend::Witness(ws) = &spend else {
                 return None;
             };
@@ -438,11 +449,7 @@ impl TxBuilder {
         }
 
         // If any spend is legacy, treat the transaction as legacy.
-        let version = if spends
-            .0
-            .iter()
-            .any(|(_, s)| matches!(s, Spend::Legacy(_)))
-        {
+        let version = if spends.0.iter().any(|(_, s)| matches!(s, Spend::Legacy(_))) {
             Version::V0
         } else {
             Version::V1
@@ -696,6 +703,65 @@ mod tests {
         let mnemonic = Mnemonic::parse("dice domain inspire horse time initial monitor nature mass impose tone benefit vibrant dash kiss mosquito rice then color ribbon agent method drop fat").unwrap();
         let ek = derive_master_key(&mnemonic.to_seed(""));
         (ek.private_key.unwrap(), ek.public_key)
+    }
+
+    #[test]
+    fn test_from_spend_rejects_note_version_spend_variant_mismatch() {
+        let (private_key, _) = keys();
+
+        let name = Name::new(
+            "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH"
+                .try_into()
+                .unwrap(),
+            "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvM"
+                .try_into()
+                .unwrap(),
+        );
+
+        let spend_condition = SpendCondition(vec![
+            LockPrimitive::Pkh(Pkh::single(private_key.public_key().hash())),
+            LockPrimitive::Tim(LockTim::coinbase()),
+        ]);
+
+        // V0 note must use legacy spends
+        let note_v0 = Note {
+            version: Version::V0,
+            origin_page: 13,
+            name: name.clone(),
+            note_data: NoteData::empty(),
+            assets: 100,
+        };
+
+        let witness_spend = Spend::new_witness(
+            Witness::new(spend_condition.clone()),
+            Seeds(vec![]),
+            0,
+        );
+        assert!(
+            SpendBuilder::from_spend(
+                witness_spend,
+                note_v0.clone(),
+                spend_condition.clone(),
+                None
+            )
+            .is_none(),
+            "V0 note must not accept a Witness spend"
+        );
+
+        // V1+ note must use witness spends (legacy should be rejected)
+        let note_v1 = Note {
+            version: Version::V1,
+            origin_page: 13,
+            name,
+            note_data: NoteData::empty(),
+            assets: 100,
+        };
+
+        let legacy_spend = Spend::new_legacy(Seeds(vec![]), 0);
+        assert!(
+            SpendBuilder::from_spend(legacy_spend, note_v1, spend_condition, None).is_none(),
+            "V1 note must not accept a Legacy spend"
+        );
     }
 
     #[test]

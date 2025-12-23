@@ -51,3 +51,11 @@ Most crates in this workspace support `no_std` environments (with `alloc` requir
 - **Publish job runs**: The `Publish (crates.io + npm)` workflow runs on the published release and publishes:
   - crates to **crates.io**
   - `@nockchain/rose-wasm` to **npmjs**
+
+## Development
+
+Auto-fix formatting + auto-fixable clippy suggestions:
+
+```bash
+make fmt
+```
