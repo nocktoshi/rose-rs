@@ -45,12 +45,14 @@ jobs:
           sha7 = os.environ["GITHUB_SHA"][:7]
           p = pathlib.Path("Cargo.toml")
           s = p.read_text()
-          m = re.search(r'\\n\\[workspace\\.package\\]\\nversion\\s*=\\s*\"([^\"]+)\"', s)
+          # Look for version line under [workspace.package] section
+          m = re.search(r'\\[workspace\.package\\][^\\[]*version\\s*=\\s*\"([^\"]+)\"', s, re.DOTALL)
           if not m:
             raise SystemExit("Could not find [workspace.package] version in Cargo.toml")
           base = m.group(1).split("-")[0]
           new_ver = f"{base}-nightly.{run}.{sha7}"
-          s2 = re.sub(r'(\\n\\[workspace\\.package\\]\\nversion\\s*=\\s*\")([^\"]+)(\")', lambda mm: mm.group(1)+new_ver+mm.group(3), s, count=1)
+          # Replace the version in the [workspace.package] section
+          s2 = re.sub(r'(\\[workspace\.package\\][^\\[]*version\\s*=\\s*\")([^\"]+)(\")', lambda mm: mm.group(1)+new_ver+mm.group(3), s, count=1, flags=re.DOTALL)
           p.write_text(s2)
           print("set workspace version to", new_ver)
           PY
