@@ -117,7 +117,7 @@ impl SpendBuilder {
             // recomputation (fee changes rebuild the refund seed).
             let preserved_memo: Option<Noun> = self
                 .spend
-                .seeds
+                .seeds_mut()
                 .0
                 .iter()
                 .find(|v| v.lock_root.hash() == lock_root.hash())
@@ -131,7 +131,7 @@ impl SpendBuilder {
 
             // Remove the previous refund
             self.spend
-                .seeds
+                .seeds_mut()
                 .0
                 .retain(|v| v.lock_root.hash() != lock_root.hash());
             let refund = self.note.assets
@@ -408,7 +408,7 @@ impl TxBuilder {
     fn apply_memo_to_last_seed_of_best_lock(&mut self, memo: Noun) {
         let mut totals: BTreeMap<Digest, Nicks> = BTreeMap::new();
         for (_, spend) in self.spends.iter() {
-            for seed in spend.spend.seeds.0.iter() {
+            for seed in spend.spend.seeds().0.iter() {
                 *totals.entry(seed.lock_root.hash()).or_default() += seed.gift;
             }
         }
@@ -444,7 +444,7 @@ impl TxBuilder {
         // z-set during output computation (spends order, then seeds vector order).
         let mut seeds_for_lock: Vec<(Name, usize, Seed)> = Vec::new();
         for (name, spend) in self.spends.iter() {
-            for (i, seed) in spend.spend.seeds.0.iter().enumerate() {
+            for (i, seed) in spend.spend.seeds().0.iter().enumerate() {
                 if seed.lock_root.hash() == best_lock {
                     seeds_for_lock.push((name.clone(), i, seed.clone()));
                 }
@@ -475,7 +475,7 @@ impl TxBuilder {
             return;
         };
         if let Some(spend) = self.spends.get_mut(&name) {
-            if let Some(seed) = spend.spend.seeds.0.get_mut(idx) {
+            if let Some(seed) = spend.spend.seeds_mut().0.get_mut(idx) {
                 seed.note_data.push_memo(memo);
             }
         }
@@ -1228,7 +1228,7 @@ mod tests {
         let mut memo_seed_count = 0usize;
         let mut memo_seed_is_middle = false;
         for (_name, spend) in builder.spends.iter() {
-            for (i, seed) in spend.spend.seeds.0.iter().enumerate() {
+            for (i, seed) in spend.spend.seeds().0.iter().enumerate() {
                 if seed_has_memo(seed) {
                     memo_seed_count += 1;
                     memo_seed_is_middle = i == 1;
@@ -1247,7 +1247,7 @@ mod tests {
         // Memo must land on the last seed in z-set order for the best lock-root.
         let mut set: ZSet<Seed> = ZSet::new();
         for (_name, spend) in builder.spends.iter() {
-            for seed in spend.spend.seeds.0.iter() {
+            for seed in spend.spend.seeds().0.iter() {
                 if seed.lock_root.hash() == best_lock {
                     set.insert(seed.clone());
                 }

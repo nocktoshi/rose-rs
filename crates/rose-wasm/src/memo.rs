@@ -1,5 +1,5 @@
-use iris_nockchain_types::note::MemoBytes;
-use iris_ztd::{cue, Noun, NounEncode};
+use rose_nockchain_types::note::MemoBytes;
+use rose_ztd::{cue, Noun, NounEncode};
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 use wasm_bindgen::prelude::*;
 
