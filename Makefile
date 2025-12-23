@@ -54,11 +54,18 @@ publish-crates:
 
 publish-crates-prerelease:
 	set -euo pipefail; \
+	bash scripts/set_prerelease_version.sh; \
+	# Publish in dependency order (workspace deps resolve correctly with --allow-dirty) \
 	cargo publish -p rose-ztd-derive --allow-dirty; \
+	sleep 10; \
 	cargo publish -p rose-ztd --allow-dirty; \
+	sleep 10; \
 	cargo publish -p rose-crypto --allow-dirty; \
+	sleep 10; \
 	cargo publish -p rose-nockchain-types --allow-dirty; \
+	sleep 10; \
 	cargo publish -p rose-grpc-proto --allow-dirty; \
+	sleep 10; \
 	cargo publish -p rose-wasm --allow-dirty
 
 npm-pack:
