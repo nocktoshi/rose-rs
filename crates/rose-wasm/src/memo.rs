@@ -55,7 +55,6 @@ pub fn memo_from_js(value: Option<JsValue>) -> Result<Option<Noun>, JsValue> {
     Ok(Some(memo))
 }
 
-
 /// Decode a memo blob (jammed noun bytes) into a UTF-8 string, if it is in the
 /// standard CLI-compatible `(list @ux)` format.
 ///
