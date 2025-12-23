@@ -6,6 +6,10 @@ set -euo pipefail
 # - [workspace.dependencies.*] tables that have a `path = "..."` (set/replace `version = "..."`)
 
 run="${GITHUB_RUN_NUMBER:-0}"
+# `GITHUB_RUN_ATTEMPT` increments when a workflow run is re-run, preventing
+# "version already exists" collisions on crates.io for the same run number.
+attempt="${GITHUB_RUN_ATTEMPT:-}"
+run_id="${GITHUB_RUN_ID:-}"
 sha="${GITHUB_SHA:-unknown}"
 sha7="${sha:0:7}"
 
@@ -30,7 +34,13 @@ if [[ -z "${base}" ]]; then
 fi
 
 base="${base%%-*}"
-new_ver="${base}-nightly.${run}.${sha7}"
+if [[ -n "${attempt}" ]]; then
+  new_ver="${base}-nightly.${run}.${attempt}.${sha7}"
+elif [[ -n "${run_id}" ]]; then
+  new_ver="${base}-nightly.${run}.${run_id}.${sha7}"
+else
+  new_ver="${base}-nightly.${run}.${sha7}"
+fi
 
 tmp="$(mktemp)"
 awk -v new_ver="$new_ver" '
