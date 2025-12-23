@@ -476,9 +476,7 @@ impl TxBuilder {
         // Note: output computation may pick note-data from a different seed; `RawTx::outputs`
         // is responsible for preserving memo across merge for that lock-root.
         let (name, idx) = chosen.unwrap_or_else(|| {
-            let (n, i, _) = seeds_for_lock
-                .last()
-                .expect("seeds_for_lock is non-empty");
+            let (n, i, _) = seeds_for_lock.last().expect("seeds_for_lock is non-empty");
             (n.clone(), *i)
         });
         if let Some(spend) = self.spends.get_mut(&name) {

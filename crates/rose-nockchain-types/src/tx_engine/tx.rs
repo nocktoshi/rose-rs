@@ -751,10 +751,7 @@ impl RawTx {
             // the last one (because adding memo changes seed ordering). To avoid silently dropping
             // memo in wallet UIs, preserve the memo entry if any seed for this lock-root has it.
             let mut note_data = seeds[seeds.len() - 1].note_data.clone();
-            let has_memo = note_data
-                .entries
-                .iter()
-                .any(|e| e.key == crate::MEMO_KEY);
+            let has_memo = note_data.entries.iter().any(|e| e.key == crate::MEMO_KEY);
             if !has_memo {
                 // Prefer the last (highest in z-set order) seed that has memo, if any.
                 if let Some(memo_val) = seeds.iter().rev().find_map(|s| {
