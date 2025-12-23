@@ -1,6 +1,6 @@
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 use rose_nockchain_types::note::MemoBytes;
-use rose_ztd::{cue, Noun, NounEncode};
+use rose_ztd::{cue, Noun, NounDecode, NounEncode};
 use wasm_bindgen::prelude::*;
 
 fn noun_atoms_fit_u64(noun: &Noun) -> bool {
@@ -53,4 +53,20 @@ pub fn memo_from_js(value: Option<JsValue>) -> Result<Option<Noun>, JsValue> {
         ));
     }
     Ok(Some(memo))
+}
+
+
+/// Decode a memo blob (jammed noun bytes) into a UTF-8 string, if it is in the
+/// standard CLI-compatible `(list @ux)` format.
+///
+/// This is intended for wallet/extension UIs that want to display memo text from
+/// note-data entries.
+#[wasm_bindgen(js_name = decodeMemoUtf8)]
+pub fn decode_memo_utf8(memo_jam: Uint8Array) -> Option<String> {
+    let bytes = memo_jam.to_vec();
+    let noun = cue(&bytes)?;
+
+    // MemoBytes is `(list @ux)` (a null-terminated list of byte atoms).
+    let memo = MemoBytes::from_noun(&noun)?;
+    memo.to_utf8_string()
 }
