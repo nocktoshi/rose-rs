@@ -732,11 +732,8 @@ mod tests {
             assets: 100,
         };
 
-        let witness_spend = Spend::new_witness(
-            Witness::new(spend_condition.clone()),
-            Seeds(vec![]),
-            0,
-        );
+        let witness_spend =
+            Spend::new_witness(Witness::new(spend_condition.clone()), Seeds(vec![]), 0);
         assert!(
             SpendBuilder::from_spend(
                 witness_spend,
