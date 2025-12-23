@@ -2,9 +2,10 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main ]
 
 jobs:
   test:
@@ -38,4 +39,4 @@ jobs:
           sudo apt-get install -y protobuf-compiler
 
       - name: Run tests
-        run: cargo test --all
+        run: make test

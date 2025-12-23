@@ -2,9 +2,10 @@ name: Format Check
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main ]
 
 jobs:
   format:
@@ -19,4 +20,4 @@ jobs:
           components: rustfmt
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: make fmt-check
