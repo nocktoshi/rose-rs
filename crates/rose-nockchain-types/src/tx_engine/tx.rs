@@ -746,7 +746,27 @@ impl RawTx {
             let total_assets: Nicks = seeds.iter().map(|s| s.gift).sum();
 
             // Hoon code ends up taking the last note-data for the output note, by the tap order of z-set.
-            let note_data = seeds[seeds.len() - 1].note_data.clone();
+            //
+            // However, memo placement is tricky: memo note-data might live on a different seed than
+            // the last one (because adding memo changes seed ordering). To avoid silently dropping
+            // memo in wallet UIs, preserve the memo entry if any seed for this lock-root has it.
+            let mut note_data = seeds[seeds.len() - 1].note_data.clone();
+            let has_memo = note_data
+                .entries
+                .iter()
+                .any(|e| e.key == crate::MEMO_KEY);
+            if !has_memo {
+                // Prefer the last (highest in z-set order) seed that has memo, if any.
+                if let Some(memo_val) = seeds.iter().rev().find_map(|s| {
+                    s.note_data
+                        .entries
+                        .iter()
+                        .find(|e| e.key == crate::MEMO_KEY)
+                        .map(|e| e.val.clone())
+                }) {
+                    note_data.push_memo(memo_val);
+                }
+            }
 
             let mut normalized_seeds_set: ZSet<Seed> = ZSet::new();
             for seed in seeds {
@@ -1093,6 +1113,94 @@ mod tests {
             "transaction id",
             &tx.id,
             "3j4vkn72mcpVtQrTgNnYyoF3rDuYax3aebT5axu3Qe16jm9x2wLtepW",
+        );
+    }
+
+    #[test]
+    fn test_outputs_preserve_memo_even_if_memo_seed_is_not_last() {
+        // `RawTx::outputs` historically took the note-data from the last seed (z-set order).
+        // Because adding memo changes seed hashes (and thus z-set ordering), it's possible for a
+        // memo seed to not be last, which would silently drop memo from derived output notes.
+        //
+        // This test constructs a minimal case where applying memo to one of two seeds causes the
+        // memo seed to not be last in z-set order, and asserts outputs still preserve memo.
+
+        fn note_data_has_memo(note_data: &NoteData) -> bool {
+            note_data.entries.iter().any(|e| e.key == crate::MEMO_KEY)
+        }
+
+        let pkh: Digest = "6psXufjYNRxffRx72w8FF9b5MYg8TEmWq2nEFkqYm51yfqsnkJu8XqX"
+            .try_into()
+            .unwrap();
+        let lock = SpendCondition::new_pkh(Pkh::single(pkh));
+        let lock_root = LockRoot::Lock(lock.clone());
+
+        // Find two seeds such that if we apply memo to seed A, it is NOT the last seed in z-set
+        // order. Do a small deterministic search over parent-hashes.
+        let mut chosen: Option<(Seed, Seed)> = None;
+        'outer: for i in 1u64..500 {
+            for j in 500u64..900 {
+                let mut a = Seed {
+                    output_source: None,
+                    lock_root: lock_root.clone(),
+                    note_data: NoteData::empty(),
+                    gift: 1_000,
+                    parent_hash: i.hash(),
+                };
+                let b = Seed {
+                    output_source: None,
+                    lock_root: lock_root.clone(),
+                    note_data: NoteData::empty(),
+                    gift: 2_000,
+                    parent_hash: j.hash(),
+                };
+
+                // Apply memo to A (only).
+                a.note_data.push_memo_utf8("nockname=test");
+
+                let mut set: ZSet<Seed> = ZSet::new();
+                set.insert(a.clone());
+                set.insert(b.clone());
+                let ordered: Vec<Seed> = set.into_iter().collect();
+                let last = ordered.last().expect("expected 2 seeds");
+
+                // We want a case where the memo seed is NOT last.
+                if !note_data_has_memo(&last.note_data) {
+                    chosen = Some((a, b));
+                    break 'outer;
+                }
+            }
+        }
+
+        let (seed_with_memo, seed_without_memo) =
+            chosen.expect("could not find seed ordering case for memo preservation test");
+        assert!(note_data_has_memo(&seed_with_memo.note_data));
+        assert!(!note_data_has_memo(&seed_without_memo.note_data));
+
+        let spend = Spend::new_witness(
+            Witness::new(lock),
+            Seeds(vec![seed_with_memo, seed_without_memo]),
+            0,
+        );
+        let name = Name::new(
+            "2H7WHTE9dFXiGgx4J432DsCLuMovNkokfcnCGRg7utWGM9h13PgQvsH"
+                .try_into()
+                .unwrap(),
+            "7yMzrJjkb2Xu8uURP7YB3DFcotttR8dKDXF1tSp2wJmmXUvLM7SYzvM"
+                .try_into()
+                .unwrap(),
+        );
+        let tx = RawTx::new(Spends(vec![(name, spend)]));
+
+        let outs = tx.outputs();
+        assert_eq!(outs.len(), 1);
+        assert!(
+            outs[0]
+                .note_data
+                .entries
+                .iter()
+                .any(|e| e.key == crate::MEMO_KEY),
+            "outputs must preserve memo even if memo seed is not last in z-set order"
         );
     }
 }

@@ -470,10 +470,17 @@ impl TxBuilder {
             }
         }
 
-        let Some((name, idx)) = chosen else {
-            // Should not happen, but if it does, fail gracefully by doing nothing.
-            return;
-        };
+        // If we couldn't find a candidate that keeps memo on the last seed (z-set order),
+        // fall back to applying memo to *some* seed so it is not silently dropped.
+        //
+        // Note: output computation may pick note-data from a different seed; `RawTx::outputs`
+        // is responsible for preserving memo across merge for that lock-root.
+        let (name, idx) = chosen.unwrap_or_else(|| {
+            let (n, i, _) = seeds_for_lock
+                .last()
+                .expect("seeds_for_lock is non-empty");
+            (n.clone(), *i)
+        });
         if let Some(spend) = self.spends.get_mut(&name) {
             if let Some(seed) = spend.spend.seeds_mut().0.get_mut(idx) {
                 seed.note_data.push_memo(memo);
