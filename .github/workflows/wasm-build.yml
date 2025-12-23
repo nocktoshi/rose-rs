@@ -2,6 +2,9 @@ name: WASM Build
 
 on:
   push:
+    branches:
+      - main
+      - master
   pull_request:
 
 env:
